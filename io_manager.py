@@ -1,6 +1,7 @@
+from logic_manager import validateAmount 
+from logic_manager import validateDescription
+
 class IOManager:
-    from logic_manager import validateAmount 
-    from logic_manager import validateDescription
     """
     MENU_OPTIONS = {
         "1": "Add expense",
@@ -65,16 +66,14 @@ class IOManager:
         }
 
     # ---------- INPUT: ENTRY ID ----------
-    """""
-    def get_entry_id(self) -> str:
-        """Ask for an expense ID. Returns a non-blank string."""
-        while True:
-            entry_id = input("Enter expense ID: ").strip()
-            if entry_id:
-                return entry_id
-            self.display_error("ID cannot be blank.")
 
-    """
+    # def get_entry_id(self) -> str:
+    #     """Ask for an expense ID. Returns a non-blank string."""
+    #     while True:
+    #         entry_id = input("Enter expense ID: ").strip()
+    #         if entry_id:
+    #             return entry_id
+    #         self.display_error("ID cannot be blank.")
 
     # ---------- INPUT: CONFIRMATION ----------
 
