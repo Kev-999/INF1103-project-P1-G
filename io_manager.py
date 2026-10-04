@@ -10,22 +10,6 @@ class IOManager:
         "7": "Exit",
     }
 
-    # ---------- MENU ----------
-
-    def show_main_menu(self) -> None:
-        
-        print("\n===== Student Expense Tracker =====")
-        for key, value in self.MENU_OPTIONS.items():
-            print(f"{key}. {value}")
-
-    def get_menu_choice(self) -> str:
-        
-        while True:
-            choice = input("Choose an option: ").strip()
-            if choice in self.MENU_OPTIONS:
-                return choice
-            self.display_error("Invalid choice. Enter a number from 1 to 7.")
-
     """
 
     # ---------- INPUT: EXPENSE ----------
@@ -34,7 +18,7 @@ class IOManager:
         """Ask for expense amount. Returns a positive float."""
         while True:
             raw = input("Expense amount: ").strip()
-            validatedAmount = logic_manager.validateAmount(raw)
+            validatedAmount = validateAmount(raw)
 
             if validatedAmount == "quit":
                 break
