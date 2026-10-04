@@ -1,17 +1,11 @@
 class IOManager:
+    from logic_manager import validateAmount 
+    from logic_manager import validateDescription
     """
-    Handles all user input and output.
-    - Validates basic input (positive numbers, non-blank strings, valid menu choices).
-    - Displays menus, results, errors, and success messages.
-    - Does NOT perform any business logic, AI categorisation, or data storage.
-    """
-
     MENU_OPTIONS = {
         "1": "Add expense",
         "2": "View expenses",
-        "3": "Update expense",
         "4": "Delete expense",
-        "5": "Set / view budget",
         "6": "View spending analysis",
         "7": "Exit",
     }
@@ -19,18 +13,20 @@ class IOManager:
     # ---------- MENU ----------
 
     def show_main_menu(self) -> None:
-        """Display the main menu."""
+        
         print("\n===== Student Expense Tracker =====")
         for key, value in self.MENU_OPTIONS.items():
             print(f"{key}. {value}")
 
     def get_menu_choice(self) -> str:
-        """Ask for a menu choice and validate it. Returns the chosen key."""
+        
         while True:
             choice = input("Choose an option: ").strip()
             if choice in self.MENU_OPTIONS:
                 return choice
             self.display_error("Invalid choice. Enter a number from 1 to 7.")
+
+    """
 
     # ---------- INPUT: EXPENSE ----------
 
@@ -38,22 +34,43 @@ class IOManager:
         """Ask for expense amount. Returns a positive float."""
         while True:
             raw = input("Expense amount: ").strip()
-            try:
-                amount = float(raw)
-                if amount <= 0:
-                    self.display_error("Amount must be a positive number.")
-                    continue
-                return amount
-            except ValueError:
-                self.display_error("Invalid amount. Example: 12.50")
+            validatedAmount = logic_manager.validateAmount(raw)
 
+            if validatedAmount == "quit":
+                break
+
+            if validatedAmount == "Negative":
+                print("Number Cannot be Negative")
+                break
+
+            if validatedAmount == "Invalid":
+                print("Cannot have characters or spaces")
+                break
+
+            else:
+                 return validatedAmount
+               
     def get_description(self) -> str:
         """Ask for expense description. Returns a non-blank string."""
         while True:
             description = input("Description: ").strip()
-            if description:
-                return description
-            self.display_error("Description cannot be blank.")
+            finaldescription = validateDescription(description)
+
+            if finaldescription == "quit":
+                break
+
+            if finaldescription == "Empty":
+                print("your input is empty please type in")
+                break
+
+            if finaldescription == "short":
+                print("your description is too short please be specific")
+                break
+
+            else:
+                return finaldescription
+        
+
 
     def get_expense_entry(self) -> dict:
         """Ask for a complete expense entry. Returns a dict with amount and description."""
@@ -63,23 +80,8 @@ class IOManager:
             "description": self.get_description(),
         }
 
-    # ---------- INPUT: BUDGET ----------
-
-    def get_budget(self) -> float:
-        """Ask for allocated budget. Returns a positive float."""
-        while True:
-            raw = input("Allocated budget: ").strip()
-            try:
-                budget = float(raw)
-                if budget <= 0:
-                    self.display_error("Budget must be a positive number.")
-                    continue
-                return budget
-            except ValueError:
-                self.display_error("Invalid budget. Example: 500.00")
-
     # ---------- INPUT: ENTRY ID ----------
-
+    """""
     def get_entry_id(self) -> str:
         """Ask for an expense ID. Returns a non-blank string."""
         while True:
@@ -87,6 +89,8 @@ class IOManager:
             if entry_id:
                 return entry_id
             self.display_error("ID cannot be blank.")
+
+    """
 
     # ---------- INPUT: CONFIRMATION ----------
 
