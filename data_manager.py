@@ -4,10 +4,11 @@ Entries look like:
      "amount": 12.5, "budget": 20.0, "ai_response": "Nice, under budget."}
 """
 import json
+import os
 
-DATA_FILE = "spending.json" 
+DATA_FILE = os.path.join("data","spending.json")
 FIELDS = ["id", "date", "description", "amount", "budget", "ai_response"]
-REQUIRED_FIELDS = ["id", "date", "description", "amount", "budget"]  # ai_response optional
+REQUIRED_FIELDS = ["id", "date", "description", "amount", "budget"]  
 
 full_history = []
 
@@ -111,8 +112,9 @@ def load_history(filename=DATA_FILE):
 def save_history(new_history, filename=DATA_FILE):
     """Save to disk. Returns None on success, or an error message string."""
     try:
-        with open(filename, "w", encoding="utf-8") as file:
-            json.dump(new_history, file, indent=2)
+        os.makedirs(os.path.dirname(filename) or ".", exist_ok=True)
+        with open(filename,"w",encoding="utf-8") as file:
+            json.dump(new_history,file,indent=2)
     except OSError as error:
         return f"Could not save to {filename}: {error}"
     return None
