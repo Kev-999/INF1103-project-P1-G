@@ -1,82 +1,94 @@
+from logic_manager import validate_amount
+from logic_manager import validate_description
+
 class IOManager:
-    from logic_manager import validateAmount 
-    from logic_manager import validateDescription
     """
     MENU_OPTIONS = {
         "1": "Add expense",
         "2": "View expenses",
-        "4": "Delete expense",
-        "6": "View spending analysis",
-        "7": "Exit",
+        "3": "View spending analysis",
+        "4": "Exit",
     }
 
     """
 
     # ---------- INPUT: EXPENSE ----------
 
-    def get_expense_amount(self) -> float:
-        """Ask for expense amount. Returns a positive float."""
+    def get_expense_amount(self) -> float | None:
+        """Ask for an amount. Returns a positive float, or None if the user types quit."""
         while True:
             raw = input("Expense amount: ").strip()
-            validatedAmount = validateAmount(raw)
+            validatedAmount = validate_amount(raw)
 
             if validatedAmount == "quit":
                 break
 
             if validatedAmount == "Negative":
                 print("Number Cannot be Negative")
-                break
+                continue
 
             if validatedAmount == "Invalid":
                 print("Cannot have characters or spaces")
+                continue
+
+            return validatedAmount
+
+    def get_budget(self) -> float | None:
+        """Ask for the budget for this expense. Returns a float, or None on quit."""
+        while True:
+            raw = input("Budget for this expense: ").strip()
+            validatedAmount = validate_amount(raw)
+
+            if validatedAmount == "quit":
                 break
 
-            else:
-                 return validatedAmount
-               
-    def get_description(self) -> str:
-        """Ask for expense description. Returns a non-blank string."""
+            if validatedAmount == "Negative":
+                print("Number Cannot be Negative")
+                continue
+
+            if validatedAmount == "Invalid":
+                print("Cannot have characters or spaces")
+                continue
+
+            return validatedAmount
+
+    def get_description(self) -> str | None:
+        """Ask for expense description. Returns a non-blank string, or None on quit."""
         while True:
             description = input("Description: ").strip()
-            finaldescription = validateDescription(description)
+            finaldescription = validate_description(description)
 
             if finaldescription == "quit":
                 break
 
             if finaldescription == "Empty":
                 print("your input is empty please type in")
-                break
+                continue
 
-            if finaldescription == "short":
+            if finaldescription == "Short":
                 print("your description is too short please be specific")
-                break
+                continue
 
-            else:
-                return finaldescription
+            return finaldescription
+
+
+    def get_expense_entry(self) -> dict | None:
+        """Ask for a complete expense entry. Returns a dict, or None if the user quits."""
+        print("\n--- Add Expense --- (type 'quit' to cancel)")
         
-
-
-    def get_expense_entry(self) -> dict:
-        """Ask for a complete expense entry. Returns a dict with amount and description."""
-        print("\n--- Add Expense ---")
-        return {
-            "expense_amount": self.get_expense_amount(),
-            "description": self.get_description(),
-        }
-
-    # ---------- INPUT: ENTRY ID ----------
-    """""
-    def get_entry_id(self) -> str:
-        """Ask for an expense ID. Returns a non-blank string."""
-        while True:
-            entry_id = input("Enter expense ID: ").strip()
-            if entry_id:
-                return entry_id
-            self.display_error("ID cannot be blank.")
-
-    """
-
-    # ---------- INPUT: CONFIRMATION ----------
+        amount = self.get_expense_amount()
+        if amount is None:
+            return None
+        
+        budget = self.get_budget()
+        if budget is None:
+            return None
+        
+        description = self.get_description()
+        if description is None:
+            return None
+        
+        return {"amount": amount, "budget": budget, "description": description}
 
     def confirm(self, prompt: str) -> bool:
         """Ask a yes/no question. Returns True for yes, False for no."""
@@ -97,21 +109,22 @@ class IOManager:
             print("No expenses found.")
             return
 
-        print(f"{'ID':<36} {'Date':<20} {'Amount':>10} {'Category':<15} Description")
-        print("-" * 100)
+        print(f"{'ID':<5} {'Date':<12} {'Amount':>10} {'Budget':>10} {'Category':<20} Description")
+        print("-" * 85)
 
         for entry in entries:
             print(
-                f"{str(entry.get('id', '')):<36} "
-                f"{str(entry.get('created_at', '')):<20} "
-                f"{float(entry.get('expense_amount', 0)):>10.2f} "
-                f"{str(entry.get('category', 'Uncategorised')):<15} "
+                f"{str(entry.get('id', '')):<5} "
+                f"{str(entry.get('date', '')):<12} "
+                f"{float(entry.get('amount', 0)):>10.2f} "
+                f"{float(entry.get('budget', 0)):>10.2f} "
+                f"{str(entry.get('ai_response') or 'Uncategorised'):<20} "
                 f"{entry.get('description', '')}"
             )
 
     def display_analysis(self, analysis: dict) -> None:
         """
-        Display spending analysis.
+Display spending analysis.
         The dict is expected to contain any results the logic manager computed.
         This method only formats and prints them.
         """
