@@ -30,12 +30,22 @@ def validate_description(description):
 
     return description
 
+def validate_category_choice(choice, categories):
+    """Validate category selection. Returns category name or error string."""
+    try:
+        index = int(choice.strip()) - 1
+        if 0 <= index < len(categories):
+            return categories[index]
+        return "Invalid"
+    except ValueError:
+        return "Invalid"
+
 def analyse_spending(records):
     """Return a summary dict of the given expense records."""
     total = sum(r["amount"] for r in records)
     byCategory = {}
     for r in records:
-        category = r.get("ai_response") or "Uncategorised"
+        category = r.get("ai_response")
         byCategory[category] = round(byCategory.get(category, 0) + r["amount"], 2)
 
     return {

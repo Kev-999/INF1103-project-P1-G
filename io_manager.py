@@ -1,5 +1,6 @@
 from logic_manager import validate_amount
 from logic_manager import validate_description
+from logic_manager import validate_category_choice
 
 """
 Input/output helpers for the expense tracker.
@@ -94,6 +95,21 @@ def get_expense_entry() -> dict | None:
     return {"amount": amount, "budget": budget, "description": description}
 
 
+def get_category_selection(expense_description, categories):
+    """Ask user to manually select a category when AI categorisation fails."""
+    print(f"\n AI categorisation unavailable. Choose a category for: {expense_description}")
+    print("Options:")
+    for i, category in enumerate(categories, 1):
+        print(f"   {i}. {category}")
+
+    while True:
+        choice = input("Enter number (1-6): ")
+        result = validate_category_choice(choice, categories)
+        if result != "Invalid":
+            return result
+        print("Invalid choice. Please enter 1-6.")
+
+
 def confirm(prompt: str) -> bool:
     """Ask a yes/no question. Returns True for yes, False for no."""
     while True:
@@ -123,7 +139,7 @@ def display_expenses(entries: list[dict]) -> None:
             f"{str(entry.get('date', '')):<12} "
             f"{float(entry.get('amount', 0)):>10.2f} "
             f"{float(entry.get('budget', 0)):>10.2f} "
-            f"{str(entry.get('ai_response') or 'Uncategorised'):<20} "
+            f"{str(entry.get('ai_response')):<20} "
             f"{entry.get('description', '')}"
         )
 
