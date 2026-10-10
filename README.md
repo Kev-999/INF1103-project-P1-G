@@ -177,20 +177,36 @@ Run the application:
 python main.py
 ```
 
-### Run with Docker
+## Running with Docker
 
-First copy `.env.example` to `.env` and put in your Gemini API key.
-
-Docker:
+**First time** (build the image and create the container):
 
 ```bash
 docker build -t student-expense-tracker .
-docker run -it --rm --name expense-tracker --env-file .env -v ./data:/app/data student-expense-tracker
+docker run -it --name expense-tracker --env-file .env -v ./data:/app/data student-expense-tracker
 ```
 
+**Running it again** (reuses the same container):
+
+```bash
+docker start -ai expense-tracker
+```
+
+**After changing the code** (rebuild the image and recreate the container):
+
+```bash
+docker build -t student-expense-tracker .
+docker rm expense-tracker
+docker run -it --name expense-tracker --env-file .env -v ./data:/app/data student-expense-tracker
+```
+
+What the options do:
+
 * `-it` is required because the app reads keyboard input
+* `--name expense-tracker` gives the container a fixed name so it can be restarted with `docker start`
 * `--env-file .env` passes the API key in at runtime (it is never copied into the image)
-* `-v .../data:/app/data` keeps `data/spending.json` on your machine so expenses are not lost when the container stops
+* `-v ./data:/app/data` keeps `data/spending.json` on your machine, so expenses are not lost when the container is stopped or removed
+* `docker start -ai` reattaches your terminal (`-a`) and keyboard input (`-i`); the `.env` and volume settings are remembered from `docker run`
 
 ## Project Requirements
 
