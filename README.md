@@ -179,17 +179,18 @@ python main.py
 
 ### Run with Docker
 
-Build the Docker image:
+First copy `.env.example` to `.env` and put in your Gemini API key.
+
+Docker:
 
 ```bash
 docker build -t student-expense-tracker .
+docker run -it --rm --name expense-tracker --env-file .env -v ./data:/app/data student-expense-tracker
 ```
 
-Run the application:
-
-```bash
-docker run --rm student-expense-tracker
-```
+* `-it` is required because the app reads keyboard input
+* `--env-file .env` passes the API key in at runtime (it is never copied into the image)
+* `-v .../data:/app/data` keeps `data/spending.json` on your machine so expenses are not lost when the container stops
 
 ## Project Requirements
 

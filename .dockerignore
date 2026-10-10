@@ -1,5 +1,9 @@
 __pycache__/
 *.pyc
 .git/
+.gitignore
 .env
-data/*.json
+data/
+test/
+*.md
+Dockerfile
