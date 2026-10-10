@@ -41,7 +41,7 @@ def generate_with_fallback(prompt, response_mime_type="application/json"):
                     logging.error(f"All models are busy after {len(FALLBACK_MODELS)} attempts")
                     return None
             else:
-                logging.error(f"Model failed: {e}")
+                logging.error(f"AI model unavailable or invalid configuration")
                 return None
     return None
 
