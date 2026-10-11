@@ -26,6 +26,68 @@ def _ask_amount(prompt):
         except ValueError:
             display_error("Enter a valid non-negative number, or leave blank to skip.")
 
+def _choose(prompt, valid):
+    """Keep asking until the user enters one of the valid choices."""
+    while True:
+        choice = input(prompt).strip()
+        if choice in valid:
+            return choice
+        display_error("Invalid option, try again.")
+
+
+def get_summary_options(categories):
+    """Ask which filter to apply. Returns keyword arguments for data_manager.query."""
+    print("\n--- Filter summary ---")
+    print("1. Date")
+    print("2. Description")
+    print("3. Category")
+    print("4. Minimum / Maximum amount spent")
+    print("5. Budget status")
+    print("6. Default (all time, oldest to newest)")
+    choice = _choose("Choose: ", {"1", "2", "3", "4", "5", "6"})
+
+    if choice == "6":
+        return {}   # no filters: query returns everything, sorted by date
+
+    if choice == "1":
+        start, end = get_report_period()
+        return {"date_from": start or None, "date_to": end or None}
+
+    if choice == "2":
+        text = input("Description contains: ").strip()
+        return {"description": text or None}
+
+    if choice == "3":
+        print("\nCategories:")
+        for i, category in enumerate(categories, 1):
+            print(f"  {i}. {category}")
+        valid = {str(i) for i in range(1, len(categories) + 1)}
+        picked = _choose("Choose a category: ", valid)
+        return {"category": categories[int(picked) - 1]}
+
+    if choice == "4":
+        while True:
+            minimum = _ask_amount("Minimum amount (blank to skip): ")
+            maximum = _ask_amount("Maximum amount (blank to skip): ")
+            if minimum is not None and maximum is not None and minimum > maximum:
+                display_error("Minimum is higher than maximum. Try again.")
+                continue
+            return {"min_amount": minimum, "max_amount": maximum}
+
+    # choice == "5"
+    print("\nBudget status:")
+    print("1. Over budget only")
+    print("2. Within budget only")
+    print("3. All")
+    status = _choose("Choose: ", {"1", "2", "3"})
+    return {"over_budget": {"1": True, "2": False}.get(status)}
+
+
+def get_sort_choice():
+    """Ask how to sort the summary on screen. Returns a sort key, or None for Quit."""
+    print("\nSort by: 1. Date  2. Amount  3. Description  4. Quit")
+    choice = _choose("Choose: ", {"1", "2", "3", "4"})
+    return {"1": "date", "2": "amount", "3": "description"}.get(choice)
 
 def get_report_period():
     """Ask user what time period to analyse. Returns (start_date, end_date) or (None, None)."""
@@ -229,28 +291,3 @@ def display_info(message: str) -> None:
     """Display an informational message."""
     print(message)
 
-def get_summary_options():
-    """Return keyword arguments for data_manager.query."""
-    start, end = get_report_period()
-    options = {"date_from": start or None, "date_to": end or None}
-
-    print("\n--- Summary view ---")
-    print("1. Default (sorted by date)")
-    print("2. Custom filters and sorting")
-    if input("Choose [1]: ").strip() != "2":
-        return options
-
-    print("\nLeave any filter blank to skip it.")
-    options["description"] = input("Description contains: ").strip() or None
-    options["category"] = input("Category (exact, e.g. Food): ").strip() or None
-    options["min_amount"] = _ask_amount("Minimum amount: ")
-    options["max_amount"] = _ask_amount("Maximum amount: ")
-
-    print("\nBudget status: 1. All  2. Over budget only  3. Within budget only")
-    options["over_budget"] = {"2": True, "3": False}.get(input("Choose [1]: ").strip())
-
-    print("\nSort by: 1. Date  2. Amount  3. Description")
-    options["sort_by"] = {"2": "amount", "3": "description"}.get(input("Choose [1]: ").strip(), "date")
-
-    options["descending"] = input("Newest/highest/Z-A first? (y/N): ").strip().lower() == "y"
-    return options

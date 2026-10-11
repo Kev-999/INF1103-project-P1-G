@@ -2,7 +2,11 @@ from datetime import date
 import data_manager
 import io_manager
 from logic_manager import analyse_spending
-from ai_manager import categorize_expense
+from ai_manager import categorize_expense, CATEGORIES
+
+SORT_DESCENDING = {"date": False, "amount": True, "description": False}
+
+
 
 
 def show_menu():
@@ -36,7 +40,23 @@ def add_expense(history):
     else:
         io_manager.display_success(f"Added expense #{record['id']} ({record['ai_response']}).")
 
+def view_summary(history):
+    options = io_manager.get_summary_options(CATEGORIES)
+    filtered = data_manager.query(history, **options)   # oldest first by default
+    if not filtered:
+        io_manager.display_info("No expenses match those filters.")
+        return
 
+    sort_by = "date"
+    while True:
+        ordered = data_manager.sort_records(filtered, sort_by, SORT_DESCENDING[sort_by])
+        io_manager.display_expenses(ordered)
+        io_manager.display_analysis(analyse_spending(ordered))
+
+        sort_by = io_manager.get_sort_choice()
+        if sort_by is None:   # user chose Quit
+            return
+        
 def main():
     history, warnings = data_manager.load_history()
     for warning in warnings:
@@ -51,13 +71,7 @@ def main():
         elif choice == "2":
             io_manager.display_expenses(history)
         elif choice == "3":
-            options = io_manager.get_summary_options()
-            filtered = data_manager.query(history, **options)
-            if not filtered:
-                io_manager.display_info("No expenses match those filters.")
-            else:
-                io_manager.display_expenses(filtered)
-                io_manager.display_analysis(analyse_spending(filtered))
+            view_summary(history)
         elif choice == "4":
             print("Goodbye!")
             break
