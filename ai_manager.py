@@ -13,7 +13,8 @@ CATEGORIES = ["Food", "Drinks", "Transport", "Entertainment", "Education Materia
 
 # Fallback models in priority order
 FALLBACK_MODELS = [
-    os.getenv("GEMINI_MODEL", "FALLBACK_MODEL"),
+    os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
+    os.getenv("FALLBACK_MODEL", "gemini-2.0-flash"),
 ]
 
 def is_busy_error(error):
@@ -36,12 +37,11 @@ def generate_with_fallback(prompt, response_mime_type="application/json"):
             return response.text
         except Exception as e:
             if is_busy_error(e):
-                logging.warning(f"Model is busy: {e}")
-                if attempt == len(FALLBACK_MODELS):
-                    logging.error(f"All models are busy after {len(FALLBACK_MODELS)} attempts")
-                    return None
+                logging.warning(f"Model {model} is busy, trying next...")
             else:
-                logging.error(f"AI model unavailable or invalid configuration")
+                logging.warning(f"Model {model} failed, trying next...")
+            if attempt == len(FALLBACK_MODELS):
+                logging.error("All models failed")
                 return None
     return None
 
