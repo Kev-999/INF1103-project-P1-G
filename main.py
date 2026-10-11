@@ -6,8 +6,6 @@ from ai_manager import categorize_expense, CATEGORIES
 
 SORT_DESCENDING = {"date": False, "amount": True, "description": False}
 
-
-
 def show_menu():
     print("\n--- Student Expense Tracker ---")
     print("1. Add expense")

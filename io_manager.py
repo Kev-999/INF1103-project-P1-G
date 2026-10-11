@@ -150,26 +150,6 @@ def get_expense_amount() -> float | None:
         return validatedAmount
 
 
-def get_budget() -> float | None:
-    """Ask for the budget for this expense. Returns a float, or None on quit."""
-    while True:
-        raw = input("Budget for this expense: ").strip()
-        validatedAmount = validate_amount(raw)
-
-        if validatedAmount == "quit":
-            break
-
-        if validatedAmount == "Negative":
-            print("Number Cannot be Negative")
-            continue
-
-        if validatedAmount == "Invalid":
-            print("Cannot have characters or spaces")
-            continue
-
-        return validatedAmount
-
-
 def get_description() -> str | None:
     """Ask for expense description. Returns a non-blank string, or None on quit."""
     while True:
@@ -198,7 +178,7 @@ def get_expense_entry() -> dict | None:
     if amount is None:
         return None
     
-    budget = get_budget()
+    budget = get_expense_amount()
     if budget is None:
         return None
     
