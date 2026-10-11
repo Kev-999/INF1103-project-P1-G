@@ -19,20 +19,12 @@ def validate_description(description):
          return "Short"
     return description
 
-def validate_category_choice(choice, categories):
-    try:
-        index = int(choice.strip()) - 1
-        if 0 <= index < len(categories):
-            return categories[index]
-        return "Invalid"
-    except ValueError:
-        return "Invalid"
 
 def analyse_spending(records, time_target_list=None):
     total = sum(r["amount"] for r in records)
     byCategory = {}
     for r in records:
-        category = r.get("ai_response")
+        category = r.get("ai_response") or "Uncategorised"
         byCategory[category] = round(byCategory.get(category, 0) + r["amount"], 2)
 
     target_summary = []

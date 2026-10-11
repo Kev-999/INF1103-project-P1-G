@@ -3,7 +3,6 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 import logging
-import io_manager
 
 load_dotenv()
 logging.getLogger("google_genai").setLevel(logging.ERROR)
@@ -62,27 +61,24 @@ Categorise this expense.
 Description: "{expense['description']}"
 Amount: ${expense.get('amount', 0):.2f}"""
     try:
-        response_text = generate_with_fallback(prompt, response_mime_type="application/json")
-        if not response_text:
-            logging.error("No response from AI")
-            return fallback_manual_categorize(expense)
-
-        result = json.loads(response_text)
+        response = client.models.generate_content(
+            model=os.getenv("GEMINI_MODEL"),
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json"
+            )
+        )
+        result = json.loads(response.text)
 
         # Never trust the AI output blindly: the category must be one of the predefined category.
         if result.get("category") not in CATEGORIES:
             logging.error(f"AI returned an unknown category: {result}")
-            return fallback_manual_categorize(expense)
+            return None
         return result
 
     except (json.JSONDecodeError, AttributeError) as e:
         logging.error(f"Failed to parse AI response: {e}")
-        return fallback_manual_categorize(expense)
+        return None
     except Exception as e:
         logging.error(f"AI call failed: {e}")
-        return fallback_manual_categorize(expense)
-
-def fallback_manual_categorize(expense):
-    """When AI fails, prompt user to manually select a category."""
-    category = io_manager.get_category_selection(expense['description'], CATEGORIES)
-    return {"category": category}
+        return None

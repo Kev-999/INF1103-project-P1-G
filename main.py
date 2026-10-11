@@ -22,9 +22,12 @@ def add_expense(history):
 
     entry["date"] = date.today().isoformat()
 
-    io_manager.display_info("Categorising...")
-    result = categorize_expense(entry)
-    entry["ai_response"] = result["category"]
+    entry["ai_response"] = "Uncategorised"
+    if categorize_expense is not None:
+        io_manager.display_info("Categorising with AI...")
+        result = categorize_expense(entry)
+        if result and result.get("category"):
+            entry["ai_response"] = result["category"]
 
     record = data_manager.add_record(history, entry)
     if record is None:
