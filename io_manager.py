@@ -1,6 +1,7 @@
 from logic_manager import validate_amount
 from logic_manager import validate_description
 from logic_manager import validate_category_choice
+from data_manager import is_valid_date
 
 """
 Input/output helpers for the expense tracker.
@@ -176,8 +177,6 @@ def display_success(message: str) -> None:
 def display_info(message: str) -> None:
     """Display an informational message."""
     print(message)
-<<<<<<< HEAD
-=======
 
 # ------ NEW target input ----
 def get_target_input() -> float | None:
