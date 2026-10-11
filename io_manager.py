@@ -1,7 +1,121 @@
 from logic_manager import validate_amount
 from logic_manager import validate_description
 from logic_manager import validate_category_choice
+from datetime import date, timedelta
+import data_manager
 
+def _ask_date(prompt):
+    """Ask for a YYYY-MM-DD date. Blank returns None (skip)."""
+    while True:
+        text = input(prompt).strip()
+        if not text:
+            return None
+        if data_manager.is_valid_date(text):
+            return text
+        display_error("Use YYYY-MM-DD, or leave blank to skip.")
+
+
+def _ask_amount(prompt):
+    """Ask for an optional non-negative amount. Blank returns None (skip)."""
+    while True:
+        text = input(prompt).strip()
+        if not text:
+            return None
+        try:
+            return data_manager.to_money(text)
+        except ValueError:
+            display_error("Enter a valid non-negative number, or leave blank to skip.")
+
+def _choose(prompt, valid):
+    """Keep asking until the user enters one of the valid choices."""
+    while True:
+        choice = input(prompt).strip()
+        if choice in valid:
+            return choice
+        display_error("Invalid option, try again.")
+
+
+def get_summary_options(categories):
+    """Ask which filter to apply. Returns keyword arguments for data_manager.query."""
+    print("\n--- Filter summary ---")
+    print("1. Date")
+    print("2. Description")
+    print("3. Category")
+    print("4. Minimum / Maximum amount spent")
+    print("5. Budget status")
+    print("6. Default (all time, oldest to newest)")
+    choice = _choose("Choose: ", {"1", "2", "3", "4", "5", "6"})
+
+    if choice == "6":
+        return {}   # no filters: query returns everything, sorted by date
+
+    if choice == "1":
+        start, end = get_report_period()
+        return {"date_from": start or None, "date_to": end or None}
+
+    if choice == "2":
+        text = input("Description contains: ").strip()
+        return {"description": text or None}
+
+    if choice == "3":
+        print("\nCategories:")
+        for i, category in enumerate(categories, 1):
+            print(f"  {i}. {category}")
+        valid = {str(i) for i in range(1, len(categories) + 1)}
+        picked = _choose("Choose a category: ", valid)
+        return {"category": categories[int(picked) - 1]}
+
+    if choice == "4":
+        while True:
+            minimum = _ask_amount("Minimum amount (blank to skip): ")
+            maximum = _ask_amount("Maximum amount (blank to skip): ")
+            if minimum is not None and maximum is not None and minimum > maximum:
+                display_error("Minimum is higher than maximum. Try again.")
+                continue
+            return {"min_amount": minimum, "max_amount": maximum}
+
+    # choice == "5"
+    print("\nBudget status:")
+    print("1. Over budget only")
+    print("2. Within budget only")
+    print("3. All")
+    status = _choose("Choose: ", {"1", "2", "3"})
+    return {"over_budget": {"1": True, "2": False}.get(status)}
+
+
+def get_sort_choice():
+    """Ask how to sort the summary on screen. Returns a sort key, or None for Quit."""
+    print("\nSort by: 1. Date  2. Amount  3. Description  4. Quit")
+    choice = _choose("Choose: ", {"1", "2", "3", "4"})
+    return {"1": "date", "2": "amount", "3": "description"}.get(choice)
+
+def get_report_period():
+    """Ask user what time period to analyse. Returns (start_date, end_date) or (None, None)."""
+
+    print("\n--- Select Report Period ---")
+    print("1. This week")
+    print("2. This month")
+    print("3. Custom date range")
+    print("4. All time")
+
+    choice = input("Choose: ").strip()
+    today = date.today()
+
+    if choice == "1":
+        start = today - timedelta(days=today.weekday())
+        return start.isoformat(), today.isoformat()
+    elif choice == "2":
+        start = date(today.year, today.month, 1)
+        return start.isoformat(), today.isoformat()
+    elif choice == "3":
+        while True:
+            start = _ask_date("Start date (YYYY-MM-DD, blank to skip): ")
+            end = _ask_date("End date (YYYY-MM-DD, blank to skip): ")
+            if start and end and start > end:
+                display_error("Start date is after the end date. Try again.")
+                continue
+            return start, end
+    return None, None
 """
 Input/output helpers for the expense tracker.
 
@@ -176,3 +290,4 @@ def display_success(message: str) -> None:
 def display_info(message: str) -> None:
     """Display an informational message."""
     print(message)
+
