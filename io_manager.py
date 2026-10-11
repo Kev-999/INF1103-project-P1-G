@@ -176,3 +176,22 @@ def display_success(message: str) -> None:
 def display_info(message: str) -> None:
     """Display an informational message."""
     print(message)
+<<<<<<< HEAD
+=======
+
+# ------ NEW target input ----
+def get_target_input() -> float | None:
+    """get expense target, return float; user input 'quit' returns None"""
+    while True:
+        raw = input("Please enter your overall spending target amount (type quit to cancel): ").strip()
+        validated = validate_amount(raw)
+        if validated == "quit":
+            return None
+        if validated == "Negative":
+            print("Number Cannot be Negative")
+            continue
+        if validated == "Invalid":
+            print("Cannot have characters or spaces")
+            continue
+        return validated
+>>>>>>> 71743bf (target function added)
