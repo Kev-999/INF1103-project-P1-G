@@ -291,3 +291,72 @@ def display_info(message: str) -> None:
     """Display an informational message."""
     print(message)
 
+# ------ NEW target input ----
+def get_target_input() -> float | None:
+    """get expense target, return float; user input 'quit' returns None"""
+    while True:
+        raw = input("Please enter your overall spending target amount (type quit to cancel): ").strip()
+        validated = validate_amount(raw)
+        if validated == "quit":
+            return None
+        if validated == "Negative":
+            print("Number Cannot be Negative")
+            continue
+        if validated == "Invalid":
+            print("Cannot have characters or spaces")
+            continue
+        return validated
+
+def get_target_name() -> str | None:
+    while True:
+        raw = input("Target name (type quit to cancel): ").strip()
+        if raw.lower() == "quit":
+            return None
+        if len(raw) <2:
+            print("Name is too short, please be specific.")
+            continue
+        return raw
+
+def get_target_date(prompt_text:str) -> str | None:
+    """input YYYY-MM-DD date, quit returns None, validate date legitimacy"""
+    while True:
+        raw = input(f"{prompt_text} (YYYY-MM-DD, quit to cancel): ").strip()
+        if raw.lower() == "quit":
+            return None
+        if is_valid_date(raw):
+            return raw
+        print("Invalid date format! Must be real date: YYYY-MM-DD")
+
+def get_target_amount() -> float | None:
+    while True:
+        raw = input("Target spending amount: ").strip()
+        validated = validate_amount(raw)
+        if validated == "quit":
+            return None
+        if validated == "Negative":
+            print("Number Cannot be Negative")
+            continue
+        if validated == "Invalid":
+            print("Cannot have characters or spaces")
+            continue
+        return validated
+
+def get_time_target_input():
+    """collect time-limited spending target form, return dictionary; user quit returns None"""
+    print("\n==== Create Time-Limited Spending Target ====")
+    name = get_target_name()
+    if name is None:
+        return None
+    start = get_target_date("Enter start date")
+    if start is None:
+        return None
+    end = get_target_date("Enter end date")
+    if end is None:
+        return None
+    if start > end:
+        print("Error: start date cannot be later than end date!")
+        return None
+    amount = get_target_amount()
+    if amount is None:
+        return None
+    return {"name":name,"start":start,"end":end,"amount":amount}

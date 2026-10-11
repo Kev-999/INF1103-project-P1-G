@@ -3,35 +3,23 @@ def validate_amount(amount):
         return "quit"
     try:
         validNumber = float(amount)
-
         if validNumber < 0:
             return "Negative"
-        #Input manager can use string "Negative" to print negative number in input error message
-
         return validNumber
-    
     except ValueError:
         return "Invalid"
-    #Input manager can use "Invalid" to print that characters or spaces are not allowed error msg
 
 def validate_description(description):
     description = description.strip()
-
     if description.lower() == "quit":
             return "quit"
-
     if description == "":
         return "Empty"
-    #Input manager can use string "Empty" to print empty error message
-
     if len(description) < 2:
          return "Short"
-    #Input manager can use string "Short" to print description is too short error message
-
     return description
 
 def validate_category_choice(choice, categories):
-    """Validate category selection. Returns category name or error string."""
     try:
         index = int(choice.strip()) - 1
         if 0 <= index < len(categories):
@@ -40,18 +28,33 @@ def validate_category_choice(choice, categories):
     except ValueError:
         return "Invalid"
 
-def analyse_spending(records):
-    """Return a summary dict of the given expense records."""
+def analyse_spending(records, time_target_list):
     total = sum(r["amount"] for r in records)
     byCategory = {}
     for r in records:
         category = r.get("ai_response")
         byCategory[category] = round(byCategory.get(category, 0) + r["amount"], 2)
 
+    target_summary = []
+    for t in time_target_list:
+        spent = sum(r["amount"] for r in records if t["start_date"] <= r["date"] <= t["end_date"])
+        spent = round(spent,2)
+        remain = round(t["target_amount"] - spent, 2)
+        over = spent > t["target_amount"]
+        target_summary.append({
+            "target_name": t["name"],
+            "period": f"{t['start_date']} ~ {t['end_date']}",
+            "target_amount": t["target_amount"],
+            "spent": spent,
+            "remaining": remain,
+            "is_over": over
+        })
+
     return {
         "Number of expenses": len(records),
-        "Total spent": round(total, 2),
+        "Total spent(all time)": round(total, 2),
         "Average per expense": round(total / len(records), 2) if records else 0,
         "Over budget count": sum(1 for r in records if r["amount"] > r["budget"]),
         "Spending by category": byCategory,
+        "Time-Limited Targets": target_summary
     }
