@@ -1,6 +1,5 @@
 from logic_manager import validate_amount
 from logic_manager import validate_description
-from logic_manager import validate_category_choice
 from datetime import date, timedelta
 import data_manager
 
@@ -15,7 +14,7 @@ def _ask_date(prompt):
         display_error("Use YYYY-MM-DD, or leave blank to skip.")
 
 
-def _ask_amount(prompt):
+def _ask_amount(prompt) -> float | None:
     """Ask for an optional non-negative amount. Blank returns None (skip)."""
     while True:
         text = input(prompt).strip()
@@ -127,29 +126,6 @@ MENU_OPTIONS = {
 }
 """
 
-# ---------- INPUT: EXPENSE ----------
-
-
-def get_expense_amount() -> float | None:
-    """Ask for an amount. Returns a positive float, or None if the user types quit."""
-    while True:
-        raw = input("Expense amount: ").strip()
-        validatedAmount = validate_amount(raw)
-
-        if validatedAmount == "quit":
-            break
-
-        if validatedAmount == "Negative":
-            print("Number Cannot be Negative")
-            continue
-
-        if validatedAmount == "Invalid":
-            print("Cannot have characters or spaces")
-            continue
-
-        return validatedAmount
-
-
 def get_description() -> str | None:
     """Ask for expense description. Returns a non-blank string, or None on quit."""
     while True:
@@ -173,12 +149,12 @@ def get_description() -> str | None:
 def get_expense_entry() -> dict | None:
     """Ask for a complete expense entry. Returns a dict, or None if the user quits."""
     print("\n--- Add Expense --- (type 'quit' to cancel)")
-    
-    amount = get_expense_amount()
+
+    amount = _ask_amount("Expense amount: ")
     if amount is None:
         return None
-    
-    budget = get_expense_amount()
+
+    budget = _ask_amount("Budget amount: ")
     if budget is None:
         return None
     
@@ -187,21 +163,6 @@ def get_expense_entry() -> dict | None:
         return None
     
     return {"amount": amount, "budget": budget, "description": description}
-
-
-def get_category_selection(expense_description, categories):
-    """Ask user to manually select a category when AI categorisation fails."""
-    print(f"\n AI categorisation unavailable. Choose a category for: {expense_description}")
-    print("Options:")
-    for i, category in enumerate(categories, 1):
-        print(f"   {i}. {category}")
-
-    while True:
-        choice = input("Enter number (1-6): ")
-        result = validate_category_choice(choice, categories)
-        if result != "Invalid":
-            return result
-        print("Invalid choice. Please enter 1-6.")
 
 
 def confirm(prompt: str) -> bool:
@@ -213,8 +174,6 @@ def confirm(prompt: str) -> bool:
         if answer in {"n", "no"}:
             return False
         display_error("Please enter y or n.")
-
-# ---------- OUTPUT: DISPLAY LISTS ----------
 
 
 def display_expenses(entries: list[dict]) -> None:
@@ -233,7 +192,7 @@ def display_expenses(entries: list[dict]) -> None:
             f"{str(entry.get('date', '')):<12} "
             f"{float(entry.get('amount', 0)):>10.2f} "
             f"{float(entry.get('budget', 0)):>10.2f} "
-            f"{str(entry.get('ai_response')):<20} "
+            f"{str(entry.get('ai_response') or 'Uncategorised'):<20} "
             f"{entry.get('description', '')}"
         )
 
@@ -254,8 +213,6 @@ def display_analysis(analysis: dict) -> None:
         else:
             print(f"{key}: {value}")
 
-# ---------- OUTPUT: MESSAGES ----------
-
 
 def display_error(message: str) -> None:
     """Display an error message."""
@@ -271,7 +228,7 @@ def display_info(message: str) -> None:
     """Display an informational message."""
     print(message)
 
-# ------ NEW target input ----
+
 def get_target_input() -> float | None:
     """get expense target, return float; user input 'quit' returns None"""
     while True:
