@@ -1,7 +1,59 @@
 from logic_manager import validate_amount
 from logic_manager import validate_description
 from logic_manager import validate_category_choice
+from datetime import date, timedelta
+import data_manager
 
+def _ask_date(prompt):
+    """Ask for a YYYY-MM-DD date. Blank returns None (skip)."""
+    while True:
+        text = input(prompt).strip()
+        if not text:
+            return None
+        if data_manager.is_valid_date(text):
+            return text
+        display_error("Use YYYY-MM-DD, or leave blank to skip.")
+
+
+def _ask_amount(prompt):
+    """Ask for an optional non-negative amount. Blank returns None (skip)."""
+    while True:
+        text = input(prompt).strip()
+        if not text:
+            return None
+        try:
+            return data_manager.to_money(text)
+        except ValueError:
+            display_error("Enter a valid non-negative number, or leave blank to skip.")
+
+
+def get_report_period():
+    """Ask user what time period to analyse. Returns (start_date, end_date) or (None, None)."""
+
+    print("\n--- Select Report Period ---")
+    print("1. This week")
+    print("2. This month")
+    print("3. Custom date range")
+    print("4. All time")
+
+    choice = input("Choose: ").strip()
+    today = date.today()
+
+    if choice == "1":
+        start = today - timedelta(days=today.weekday())
+        return start.isoformat(), today.isoformat()
+    elif choice == "2":
+        start = date(today.year, today.month, 1)
+        return start.isoformat(), today.isoformat()
+    elif choice == "3":
+        while True:
+            start = _ask_date("Start date (YYYY-MM-DD, blank to skip): ")
+            end = _ask_date("End date (YYYY-MM-DD, blank to skip): ")
+            if start and end and start > end:
+                display_error("Start date is after the end date. Try again.")
+                continue
+            return start, end
+    return None, None
 """
 Input/output helpers for the expense tracker.
 
@@ -176,3 +228,29 @@ def display_success(message: str) -> None:
 def display_info(message: str) -> None:
     """Display an informational message."""
     print(message)
+
+def get_summary_options():
+    """Return keyword arguments for data_manager.query."""
+    start, end = get_report_period()
+    options = {"date_from": start or None, "date_to": end or None}
+
+    print("\n--- Summary view ---")
+    print("1. Default (sorted by date)")
+    print("2. Custom filters and sorting")
+    if input("Choose [1]: ").strip() != "2":
+        return options
+
+    print("\nLeave any filter blank to skip it.")
+    options["description"] = input("Description contains: ").strip() or None
+    options["category"] = input("Category (exact, e.g. Food): ").strip() or None
+    options["min_amount"] = _ask_amount("Minimum amount: ")
+    options["max_amount"] = _ask_amount("Maximum amount: ")
+
+    print("\nBudget status: 1. All  2. Over budget only  3. Within budget only")
+    options["over_budget"] = {"2": True, "3": False}.get(input("Choose [1]: ").strip())
+
+    print("\nSort by: 1. Date  2. Amount  3. Description")
+    options["sort_by"] = {"2": "amount", "3": "description"}.get(input("Choose [1]: ").strip(), "date")
+
+    options["descending"] = input("Newest/highest/Z-A first? (y/N): ").strip().lower() == "y"
+    return options

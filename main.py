@@ -51,13 +51,18 @@ def main():
         elif choice == "2":
             io_manager.display_expenses(history)
         elif choice == "3":
-            io_manager.display_analysis(analyse_spending(history))
+            options = io_manager.get_summary_options()
+            filtered = data_manager.query(history, **options)
+            if not filtered:
+                io_manager.display_info("No expenses match those filters.")
+            else:
+                io_manager.display_expenses(filtered)
+                io_manager.display_analysis(analyse_spending(filtered))
         elif choice == "4":
             print("Goodbye!")
             break
         else:
-            io_manager.display_error("Invalid option, try again.")
-
+            io_manager.display_error("Invalid option, try again")
 
 if __name__ == "__main__":
     main()

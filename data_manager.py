@@ -9,7 +9,7 @@ import os
 DATA_FILE = os.path.join("data","spending.json")
 FIELDS = ["id", "date", "description", "amount", "budget", "ai_response"]
 REQUIRED_FIELDS = ["id", "date", "description", "amount", "budget"]  
-
+SORT_OPTIONS = ("date", "amount", "description", "id")
 full_history = []
 
 
@@ -189,18 +189,34 @@ def filter_by_budget_status(records, over_budget):
     """over_budget=True -> only entries where amount > budget; False -> the rest."""
     return [r for r in records if (r["amount"] > r["budget"]) == over_budget]
 
+def sort_records(records, sort_by="date", descending=False):
+    """Sort records; ties are broken by id so the order is stable."""
+    if sort_by not in SORT_OPTIONS:
+        sort_by = "date"
+    if sort_by == "description":
+        key = lambda r: (r["description"].lower(), r["id"])
+    else:
+        key = lambda r: (r[sort_by], r["id"])
+    return sorted(records, key=key, reverse=descending)
 
-def query(records, description=None, date_from=None, date_to=None,
-          min_amount=None, max_amount=None, over_budget=None, record_id=None):
-    """Combine any filters; None means 'skip this filter'."""
+def filter_by_category(records, category):
+    category = category.lower()
+    return [r for r in records if r["ai_response"].lower() == category]
+
+def query(records, description=None, category=None, date_from=None, date_to=None,
+          min_amount=None, max_amount=None, over_budget=None, record_id=None,
+          sort_by="date", descending=False):
+    """Combine any filters; None means 'skip this filter'. Sorted by date by default."""
     result = records
     if record_id is not None:
         match = find_by_id(result, record_id)
         result = [match] if match else []
     if description:
         result = filter_by_description(result, description)
+    if category:
+        result = filter_by_category(result, category)
     result = filter_by_date(result, date_from, date_to)
     result = filter_by_amount(result, min_amount, max_amount)
     if over_budget is not None:
         result = filter_by_budget_status(result, over_budget)
-    return result
+    return sort_records(result, sort_by, descending)
