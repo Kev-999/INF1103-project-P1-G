@@ -2,7 +2,16 @@
 Entries look like:
     {"id": 1, "date": "2026-10-02", "description": "Lunch",
      "amount": 12.5, "budget": 20.0, "ai_response": "Nice, under budget."}
+
+File new structure:
+{
+  "records": [ {...expense entries...} ],
+  "time_targets": [
+      {"target_id":1,"name":"xxx","target_amount":500.0,"start_date":"2026-10-01","end_date":"2026-10-07"}
+  ]
+}
 """
+
 import json
 import os
 
@@ -11,7 +20,7 @@ FIELDS = ["id", "date", "description", "amount", "budget", "ai_response"]
 REQUIRED_FIELDS = ["id", "date", "description", "amount", "budget"]  
 SORT_OPTIONS = ("date", "amount", "description", "id")
 full_history = []
-
+time_targets = []   # store multiple time-based targets
 
 def to_money(value):
     """Convert to a non-negative amount rounded to 2 decimals, or raise ValueError."""
@@ -57,7 +66,6 @@ def clean_record(raw):
         return None
     return record
 
-
 def backup_corrupted_file(filename):
     try:
         with open(filename, "rb") as source, open(filename + ".corrupted", "wb") as target:
@@ -66,65 +74,106 @@ def backup_corrupted_file(filename):
     except OSError:
         return False
 
-
 def _read_json(filename):
     with open(filename, "r", encoding="utf-8") as file:
         data = json.load(file)
-    if not isinstance(data, list):
-        raise ValueError("JSON root must be a list")
+    if not isinstance(data, (list, dict)):
+        raise ValueError("JSON root must be a list or dict")
     return data
 
-
-
 def _load_records(filename):
-
+    global time_targets
     try:
-        raw_rows = _read_json(filename)
+        raw_data = _read_json(filename)
     except FileNotFoundError:
-        return [], []
-    except (ValueError): 
+        return [], [], []
+    except ValueError:
         if backup_corrupted_file(filename):
-            return [], [f"{filename} was corrupted. A copy was kept as {filename}.corrupted."]
-        return [], [f"{filename} was corrupted and could not be backed up."]
+            return [], [f"{filename} was corrupted. A copy was kept as {filename}.corrupted."], []
+        return [], [f"{filename} was corrupted and could not be backed up."], []
     except OSError as error:
-        return [], [f"Could not read {filename}: {error}"]
+        return [], [f"Could not read {filename}: {error}"], []
+
+    # compat old version files: root node is a list
+    if isinstance(raw_data, list):
+        raw_rows = raw_data
+        loaded_targets = []
+    elif isinstance(raw_data, dict):
+        raw_rows = raw_data.get("records", [])
+        loaded_targets = raw_data.get("time_targets", [])
+    else:
+        raise ValueError("invalid json root")
 
     records = []
     skipped = 0
     for raw in raw_rows:
         record = clean_record(raw)
         if record is None:
-            skipped += 1
+            skipped +=1
         else:
             records.append(record)
     warnings = [f"Skipped {skipped} bad record(s) in {filename}."] if skipped else []
-    return records, warnings
-
+    time_targets = loaded_targets
+    return records, warnings, loaded_targets
 
 def load_history(filename=DATA_FILE):
-    """Fill full_history from disk. Returns (full_history, warnings)."""
-    records, warnings = _load_records(filename)
+    global full_history, time_targets
+    records, warnings, targets = _load_records(filename)
     full_history.clear()
     full_history.extend(records)
+    time_targets = targets
     return full_history, warnings
 
-
 def save_history(new_history, filename=DATA_FILE):
-    """Save to disk. Returns None on success, or an error message string."""
+    global time_targets
     try:
         os.makedirs(os.path.dirname(filename) or ".", exist_ok=True)
+        out_data = {
+            "records": new_history,
+            "time_targets": time_targets
+        }
         with open(filename,"w",encoding="utf-8") as file:
-            json.dump(new_history,file,indent=2)
+            json.dump(out_data,file,indent=2)
     except OSError as error:
         return f"Could not save to {filename}: {error}"
     return None
 
+def get_next_target_id():
+    if not time_targets:
+        return 1
+    return max(t["target_id"] for t in time_targets)+1
+
+def add_time_target(name:str, target_amount:float, start_date:str, end_date:str):
+    """add time target; return the new target dict; return None on failure"""
+    global time_targets
+    if not (is_valid_date(start_date) and is_valid_date(end_date)):
+        return None
+    if start_date > end_date:
+        return None
+    new_t = {
+        "target_id": get_next_target_id(),
+        "name": name.strip(),
+        "target_amount": to_money(target_amount),
+        "start_date": start_date,
+        "end_date": end_date
+    }
+    time_targets.append(new_t)
+    save_history(full_history)
+    return new_t
+
+def get_all_time_targets():
+    return time_targets.copy()
+
+def calc_target_spending(records, start_date, end_date):
+    """calculate the total spending in records that fall within [start_date, end_date]"""
+    filtered = [r for r in records if start_date <= r["date"] <= end_date]
+    total = sum(r["amount"] for r in filtered)
+    return round(total,2)
 
 def get_next_id(new_history):
     if not new_history:
         return 1
     return max(record["id"] for record in new_history) + 1
-
 
 def add_record(history, entry):
     if not isinstance(entry, dict):
@@ -141,7 +190,6 @@ def add_record(history, entry):
         history.append(record)
     return record
 
-
 def add_records(history, entries):
     added = []
     rejected = 0
@@ -150,16 +198,14 @@ def add_records(history, entries):
         if record:
             added.append(record)
         else:
-            rejected += 1
+            rejected +=1
     return added, rejected
-
 
 def find_by_id(records, record_id):
     for record in records:
         if record["id"] == record_id:
             return record
     return None
-
 
 def filter_by_description(records, text):
     text = text.lower()
@@ -174,7 +220,6 @@ def filter_by_date(records, start=None, end=None):
     if end is not None:
         result = [r for r in result if r["date"] <= end]
     return result
-
 
 def filter_by_amount(records, min_amount=None, max_amount=None):
     result = records
