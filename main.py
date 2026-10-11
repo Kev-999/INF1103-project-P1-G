@@ -52,6 +52,17 @@ def view_summary(history):
     if not filtered:
         io_manager.display_info("No expenses match those filters.")
         return
+
+    sort_by = "date"
+    while True:
+        ordered = data_manager.sort_records(filtered, sort_by, SORT_DESCENDING[sort_by])
+        io_manager.display_expenses(ordered)
+        io_manager.display_analysis(analyse_spending(ordered))
+    
+        sort_by = io_manager.get_sort_choice()
+        if sort_by is None:   # user chose Quit
+            return
+
 def create_time_target():
     print("\n--- New Time-Limited Target ---")
     target_input = io_manager.get_time_target_input()
@@ -68,16 +79,6 @@ def create_time_target():
         io_manager.display_error("Failed to create target, invalid input.")
     else:
         io_manager.display_success(f"Created target #{new_t['target_id']} [{new_t['name']}] {new_t['start_date']} ~ {new_t['end_date']}, limit {new_t['target_amount']:.2f}")
-
-    sort_by = "date"
-    while True:
-        ordered = data_manager.sort_records(filtered, sort_by, SORT_DESCENDING[sort_by])
-        io_manager.display_expenses(ordered)
-        io_manager.display_analysis(analyse_spending(ordered))
-
-        sort_by = io_manager.get_sort_choice()
-        if sort_by is None:   # user chose Quit
-            return
         
 def main():
     history, warnings = data_manager.load_history()

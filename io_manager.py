@@ -323,7 +323,7 @@ def get_target_date(prompt_text:str) -> str | None:
         raw = input(f"{prompt_text} (YYYY-MM-DD, quit to cancel): ").strip()
         if raw.lower() == "quit":
             return None
-        if is_valid_date(raw):
+        if data_manager.is_valid_date(raw):
             return raw
         print("Invalid date format! Must be real date: YYYY-MM-DD")
 
