@@ -44,7 +44,7 @@ def add_expense(history):
             if t["start_date"] <= expense_date <= t["end_date"]:
                 spent_in_range = data_manager.calc_target_spending(history, t["start_date"], t["end_date"])
                 if spent_in_range > t["target_amount"]:
-                    io_manager.display_error(f"⚠️ ALERT! Target [{t['name']}] ({t['start_date']}~{t['end_date']}) OVER LIMIT! target:{t['target_amount']:.2f}, spent:{spent_in_range:.2f}")
+                    io_manager.display_error(f" ALERT! Target [{t['name']}] ({t['start_date']}~{t['end_date']}) OVER LIMIT! target:{t['target_amount']:.2f}, spent:{spent_in_range:.2f}")
 
 def view_summary(history):
     options = io_manager.get_summary_options(CATEGORIES)
@@ -53,12 +53,13 @@ def view_summary(history):
         io_manager.display_info("No expenses match those filters.")
         return
 
+    time_target_list = data_manager.get_all_time_targets()
     sort_by = "date"
     while True:
         ordered = data_manager.sort_records(filtered, sort_by, SORT_DESCENDING[sort_by])
         io_manager.display_expenses(ordered)
-        io_manager.display_analysis(analyse_spending(ordered))
-    
+        io_manager.display_analysis(analyse_spending(ordered, time_target_list))
+
         sort_by = io_manager.get_sort_choice()
         if sort_by is None:   # user chose Quit
             return

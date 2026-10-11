@@ -11,8 +11,10 @@ File new structure:
   ]
 }
 """
+
 import json
 import os
+
 DATA_FILE = os.path.join("data","spending.json")
 FIELDS = ["id", "date", "description", "amount", "budget", "ai_response"]
 REQUIRED_FIELDS = ["id", "date", "description", "amount", "budget"]  
