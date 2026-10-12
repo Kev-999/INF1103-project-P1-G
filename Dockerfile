@@ -15,4 +15,4 @@ COPY *.py ./
 RUN mkdir -p /app/data
 VOLUME ["/app/data"]
 
-CMD ["python", "main.py"]
+CMD ["sh", "-c", "python test.py && python main.py"]
