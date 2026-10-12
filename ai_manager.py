@@ -10,6 +10,40 @@ logging.getLogger("google_genai").setLevel(logging.ERROR)
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 CATEGORIES = ["Food", "Drinks", "Transport", "Entertainment", "Education Materials", "Other"]
 
+# Fallback models in priority order
+FALLBACK_MODELS = [
+    os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
+    os.getenv("FALLBACK_MODEL", "gemini-2.0-flash"),
+]
+
+def is_busy_error(error):
+    error_str = str(error).lower()
+    busy_phrases = ["429", "rate limit", "quota", "too many requests", "busy", "unavailable"]
+    return any(phrase in error_str for phrase in busy_phrases)
+
+def generate_with_fallback(prompt, response_mime_type="application/json"):
+    for attempt, model in enumerate(FALLBACK_MODELS, 1):
+        try:
+            logging.info(f"Attempt {attempt}: Trying model {model}")
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type=response_mime_type
+                )
+            )
+            logging.info(f"Success with {model}")
+            return response.text
+        except Exception as e:
+            if is_busy_error(e):
+                logging.warning(f"Model {model} is busy, trying next...")
+            else:
+                logging.warning(f"Model {model} failed, trying next...")
+            if attempt == len(FALLBACK_MODELS):
+                logging.error("All models failed")
+                return None
+    return None
+
 def categorize_expense(expense):
     prompt = f"""You categorise expenses for a student budgeting app in Singapore.
 Pick exactly one category for each expense:
@@ -45,7 +79,6 @@ Amount: ${expense.get('amount', 0):.2f}"""
     except (json.JSONDecodeError, AttributeError) as e:
         logging.error(f"Failed to parse AI response: {e}")
         return None
-
     except Exception as e:
-        logging.error(f"AI API call failed: {e}")
+        logging.error(f"AI call failed: {e}")
         return None

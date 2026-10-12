@@ -25,9 +25,7 @@ This application aims to provide students with a simple way to record expenses a
 * Use AI to automatically categorise expenses
 * Analyse purchasing behaviour
 * Identify potential overspending
-* Compare expected and actual usage
-* Store expense records for future reference
-* View previous expense records
+* View and Store expense records for future reference
 
 ## System Architecture
 
@@ -74,14 +72,13 @@ Examples include:
 * Identifying potential overspending
 * Processing AI-generated expense categories
 * Evaluating purchase behaviour
-* Generating an outcome or recommendation
 
 ### Data Manager
 
 Responsible for storing and retrieving application data.
 
-* Saves processed records to JSON or CSV
-* Loads existing records when the application starts
+* Saves processed records to JSON
+* Loads existing records
 * Provides filtering and query functions
 * Handles missing or corrupted data files
 
@@ -92,9 +89,8 @@ The application accepts information such as:
 | Input            | Example               |
 | ---------------- | --------------------- |
 | Expense Amount   | `8.50`                |
+| Allocated Budget | `10`                 |
 | Description      | `Lunch at McDonald's` |
-| Allocated Budget | `300`                 |
-| Date             | `2026-09-22`          |
 
 ## AI Processing
 
@@ -120,7 +116,6 @@ Examples include:
 * Expense description cannot be empty
 * AI-generated categories must match the predefined categories
 * Spending is checked against the allocated budget
-* Multiple AI output fields may be used together to determine the final outcome
 
 ## Data Storage
 
@@ -131,7 +126,6 @@ Example:
 ```text
 data/
 └── expenses.json
-└── expenses.csv
 ```
 
 Data is loaded when the application starts so that previous records can be accessed across different runs.
@@ -150,8 +144,7 @@ LABP1Team1_project/
 ├── data/
 │   └── expenses.json
 │
-├── tests/
-│   └── test_script.py
+├── test.py
 │
 ├── .env
 ├── .gitignore
@@ -177,19 +170,36 @@ Run the application:
 python main.py
 ```
 
-### Run with Docker
+## Running with Docker
 
-Build the Docker image:
+**First time** (build the image and create the container):
 
 ```bash
 docker build -t student-expense-tracker .
+docker run -it --name expense-tracker --env-file .env -v ./data:/app/data student-expense-tracker
 ```
 
-Run the application:
+**Running it again** (reuses the same container):
 
 ```bash
-docker run --rm student-expense-tracker
+docker start -ai expense-tracker
 ```
+
+**After changing the code** (rebuild the image and recreate the container):
+
+```bash
+docker build -t student-expense-tracker .
+docker rm expense-tracker
+docker run -it --name expense-tracker --env-file .env -v ./data:/app/data student-expense-tracker
+```
+
+What the options do:
+
+* `-it` is required because the app reads keyboard input
+* `--name expense-tracker` gives the container a fixed name so it can be restarted with `docker start`
+* `--env-file .env` passes the API key in at runtime (it is never copied into the image)
+* `-v ./data:/app/data` keeps `data/spending.json` on your machine, so expenses are not lost when the container is stopped or removed
+* `docker start -ai` reattaches your terminal (`-a`) and keyboard input (`-i`); the `.env` and volume settings are remembered from `docker run`
 
 ## Project Requirements
 
@@ -199,6 +209,6 @@ The project follows the requirements provided for the team project:
 * Procedural Python only
 * AI API processing for every record
 * Structured AI responses
-* JSON or CSV persistence
+* JSON persistence
 * Docker support
 * Git-based development and history
