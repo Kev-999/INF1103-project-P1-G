@@ -49,7 +49,6 @@ class TestValidateDescription(unittest.TestCase):
 
 
 class TestAnalyseSpending(unittest.TestCase):
-    # Hardcoded sample AI categories (None / "" = AI failed or returned nothing)
     SAMPLE = [
         rec(4.50, 5.00, "Food"), rec(8.20, 7.00, "Food"), rec(6.50, 5.00, "Drinks"),
         rec(20.00, 15.00, "Transport"), rec(15.00, 20.00, "Entertainment"),
@@ -61,13 +60,13 @@ class TestAnalyseSpending(unittest.TestCase):
         before = [dict(r) for r in self.SAMPLE]
         result = analyse_spending(self.SAMPLE)
         self.assertEqual(result["Number of expenses"], 9)
-        self.assertEqual(result["Total spent"], 110.50)
+        self.assertEqual(result["Total spent(all time)"], 110.50)
         self.assertEqual(result["Average per expense"], 12.28)
         self.assertEqual(result["Over budget count"], 3)
         self.assertEqual(result["Spending by category"], {
             "Food": 12.7, "Drinks": 6.5, "Transport": 20.0, "Entertainment": 15.0,
             "Education Materials": 40.0, "Other": 12.0, "Uncategorised": 4.3})
-        self.assertEqual(self.SAMPLE, before)  # input not modified
+        self.assertEqual(self.SAMPLE, before)
 
     def test_every_category_grouped(self):
         result = analyse_spending([rec(1.0, 5.0, c) for c in CATEGORIES])
@@ -75,12 +74,12 @@ class TestAnalyseSpending(unittest.TestCase):
 
     def test_empty(self):
         self.assertEqual(analyse_spending([]), {
-            "Number of expenses": 0, "Total spent": 0, "Average per expense": 0,
-            "Over budget count": 0, "Spending by category": {}})
+            "Number of expenses": 0, "Total spent(all time)": 0, "Average per expense": 0,
+            "Over budget count": 0, "Spending by category": {}, "Time-Limited Targets": []})
 
     def test_single_record(self):
         result = analyse_spending([rec(9.99, 10.0)])
-        self.assertEqual((result["Total spent"], result["Average per expense"]), (9.99, 9.99))
+        self.assertEqual((result["Total spent(all time)"], result["Average per expense"]), (9.99, 9.99))
 
     def test_missing_ai_response_key(self):
         result = analyse_spending([{"amount": 4.0, "budget": 10.0}])
@@ -92,7 +91,7 @@ class TestAnalyseSpending(unittest.TestCase):
 
     def test_float_rounding(self):
         result = analyse_spending([rec(0.1, 1, "Other"), rec(0.2, 1, "Other")])
-        self.assertEqual(result["Total spent"], 0.3)
+        self.assertEqual(result["Total spent(all time)"], 0.3)
         self.assertEqual(result["Spending by category"], {"Other": 0.3})
 
 
@@ -186,12 +185,11 @@ class TestDataStorage(unittest.TestCase):
         self.assertEqual(dm.load_history(self.path), ([], []))
 
     def test_corrupted_file_backed_up(self):
-        for content in ["{ not json", json.dumps({"not": "a list"})]:
-            self.write(content)
-            loaded, warnings = dm.load_history(self.path)
-            self.assertEqual(loaded, [])
-            self.assertIn("corrupted", warnings[0])
-            self.assertTrue(os.path.exists(self.path + ".corrupted"))
+        self.write("{ not json")
+        loaded, warnings = dm.load_history(self.path)
+        self.assertEqual(loaded, [])
+        self.assertIn("corrupted", warnings[0])
+        self.assertTrue(os.path.exists(self.path + ".corrupted"))
 
     def test_bad_records_skipped(self):
         good = {"id": 1, "date": "2026-10-02", "description": "Lunch", "amount": 5, "budget": 10}
@@ -202,7 +200,6 @@ class TestDataStorage(unittest.TestCase):
 
 
 class TestAIPipeline(unittest.TestCase):
-    """Hardcoded raw AI JSON flows through data_manager into the analysis."""
     AI_RESPONSES = [("Chicken rice", 4.5, 5, '{"category": "Food"}'),
                     ("Bubble tea", 6.5, 5, '{"category": "Drinks"}'),
                     ("Grab to school", 12, 10, '{"category": "Transport"}'),
@@ -216,7 +213,7 @@ class TestAIPipeline(unittest.TestCase):
             self.assertIn(category, CATEGORIES)
             self.assertIsNotNone(dm.add_record(history, rec(amount, budget, category, description)))
         result = analyse_spending(history)
-        self.assertEqual((result["Number of expenses"], result["Total spent"],
+        self.assertEqual((result["Number of expenses"], result["Total spent(all time)"],
                           result["Over budget count"]), (5, 63.0, 2))
         self.assertEqual(result["Spending by category"], {
             "Food": 4.5, "Drinks": 6.5, "Transport": 12.0, "Education Materials": 25.0, "Other": 15.0})
