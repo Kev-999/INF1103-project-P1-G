@@ -7,4 +7,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "main.py"]
+# Run the tests first; start the app only if they all pass.
+CMD ["sh", "-c", "python test.py && python main.py"]
