@@ -115,16 +115,6 @@ def get_report_period():
                 continue
             return start, end
     return None, None
-"""
-Input/output helpers for the expense tracker.
-
-MENU_OPTIONS = {
-    "1": "Add expense",
-    "2": "View expenses",
-    "3": "View spending analysis",
-    "4": "Exit",
-}
-"""
 
 def get_description() -> str | None:
     """Ask for expense description. Returns a non-blank string, or None on quit."""
@@ -264,19 +254,6 @@ def get_target_date(prompt_text:str) -> str | None:
             return raw
         print("Invalid date format! Must be real date: YYYY-MM-DD")
 
-def get_target_amount() -> float | None:
-    while True:
-        raw = input("Target spending amount: ").strip()
-        validated = validate_amount(raw)
-        if validated == "quit":
-            return None
-        if validated == "Negative":
-            print("Number Cannot be Negative")
-            continue
-        if validated == "Invalid":
-            print("Cannot have characters or spaces")
-            continue
-        return validated
 
 def get_time_target_input():
     """collect time-limited spending target form, return dictionary; user quit returns None"""
@@ -293,7 +270,7 @@ def get_time_target_input():
     if start > end:
         print("Error: start date cannot be later than end date!")
         return None
-    amount = get_target_amount()
+    amount = _ask_amount("Enter amount")
     if amount is None:
         return None
     return {"name":name,"start":start,"end":end,"amount":amount}
