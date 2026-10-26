@@ -33,7 +33,7 @@ def generate_with_fallback(prompt, response_mime_type="application/json"):
                 )
             )
             logging.info(f"Success with {model}")
-            return response.text
+            return response.text, model
         except Exception as e:
             if is_busy_error(e):
                 logging.warning(f"Model {model} is busy, trying next...")
@@ -61,19 +61,17 @@ Categorise this expense.
 Description: "{expense['description']}"
 Amount: ${expense.get('amount', 0):.2f}"""
     try:
-        response = client.models.generate_content(
-            model=os.getenv("GEMINI_MODEL"),
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json"
-            )
-        )
-        result = json.loads(response.text)
+        text, model_used = generate_with_fallback(prompt)
+        if text is None:
+            return None  # all models failed; main.py falls back to "Uncategorised"
+
+        result = json.loads(text)
 
         # Never trust the AI output blindly: the category must be one of the predefined category.
         if result.get("category") not in CATEGORIES:
             logging.error(f"AI returned an unknown category: {result}")
             return None
+        result["model"] = model_used
         return result
 
     except (json.JSONDecodeError, AttributeError) as e:

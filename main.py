@@ -28,6 +28,7 @@ def add_expense(history):
         result = categorize_expense(entry)
         if result and result.get("category"):
             entry["ai_response"] = result["category"]
+            entry["ai_model"]=result["model"]
 
     record = data_manager.add_record(history, entry)
     if record is None:
