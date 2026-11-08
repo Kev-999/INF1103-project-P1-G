@@ -1,10 +1,13 @@
 from datetime import date
 import data_manager
 import io_manager
-from logic_manager import analyse_spending
-from ai_manager import categorize_expense, CATEGORIES
+from logic_manager import analyse_spending, needs_manual_category
+from ai_manager import build_default_manager, CATEGORIES
+from types import SimpleNamespace
 
 SORT_DESCENDING = {"date": False, "amount": True, "description": False}
+
+ai_manager = build_default_manager()
 
 def show_menu():
     print("\n--- Student Expense Tracker ---")
@@ -22,31 +25,36 @@ def add_expense(history):
 
     entry["date"] = date.today().isoformat()
 
-    entry["ai_response"] = "Uncategorised"
-    if categorize_expense is not None:
-        io_manager.display_info("Categorising with AI...")
-        result = categorize_expense(entry)
-        if result and result.get("category"):
-            entry["ai_response"] = result["category"]
-            entry["ai_model"]=result["model"]
+    io_manager.display_info("Categorising with AI...")
+    result = ai_manager.categorize(entry["description"], entry["amount"])
+
+    # Business rule (in logic_manager): AI failed or low confidence -> user picks
+    if needs_manual_category(result):
+        entry["ai_response"] = io_manager.get_category_selection(entry["description"], CATEGORIES)
+    else:
+        entry["ai_response"] = result.category
 
     record = data_manager.add_record(history, entry)
     if record is None:
         io_manager.display_error("Expense could not be added (invalid data).")
         return
+    
     error = data_manager.save_history(history)
     if error:
         io_manager.display_error(error)
-    else:
-        io_manager.display_success(f"Added expense #{record['id']} ({record['ai_response']}).")
-        # check this new record falls within which time target ranges, and determine if it exceeds the limit
-        all_targets = data_manager.get_all_time_targets()
-        expense_date = record["date"]
-        for t in all_targets:
-            if t["start_date"] <= expense_date <= t["end_date"]:
-                spent_in_range = data_manager.calc_target_spending(history, t["start_date"], t["end_date"])
-                if spent_in_range > t["target_amount"]:
-                    io_manager.display_error(f" ALERT! Target [{t['name']}] ({t['start_date']}~{t['end_date']}) OVER LIMIT! target:{t['target_amount']:.2f}, spent:{spent_in_range:.2f}")
+        return
+    
+    io_manager.display_success(f"Added expense #{record['id']} ({record['ai_response']}).")
+    
+    # check this new record falls within which time target ranges, and determine if it exceeds the limit
+    for t in data_manager.get_all_time_targets():
+        if t["start_date"] <= record["date"] <= t["end_date"]:
+            spent_in_range = data_manager.calc_target_spending(history, t["start_date"], t["end_date"])
+            if spent_in_range > t["target_amount"]:
+                io_manager.display_error(
+                    f" ALERT! Target [{t['name']}] ({t['start_date']}~{t['end_date']}) OVER LIMIT! "
+                    f"target:{t['target_amount']:.2f}, spent:{spent_in_range:.2f}"
+                )
 
 def view_summary(history):
     options = io_manager.get_summary_options(CATEGORIES)

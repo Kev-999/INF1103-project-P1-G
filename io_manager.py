@@ -2,6 +2,7 @@ from logic_manager import validate_amount
 from logic_manager import validate_description
 from datetime import date, timedelta
 import data_manager
+from logic_manager import validate_category_choice
 
 def _ask_date(prompt):
     """Ask for a YYYY-MM-DD date. Blank returns None (skip)."""
@@ -274,3 +275,17 @@ def get_time_target_input():
     if amount is None:
         return None
     return {"name":name,"start":start,"end":end,"amount":amount}
+
+def get_category_selection(expense_description, categories):
+    """Ask the user to pick a category when the AI fails or isn't confident."""
+    print(f"\nThe AI couldn't categorise this reliably: {expense_description}")
+    print("Please choose a category:")
+    for i, category in enumerate(categories, 1):
+        print(f"   {i}. {category}")
+
+    while True:
+        choice = input(f"Enter number (1-{len(categories)}): ")
+        result = validate_category_choice(choice, categories)
+        if result != "Invalid":
+            return result
+        print(f"Invalid choice. Please enter 1-{len(categories)}.")

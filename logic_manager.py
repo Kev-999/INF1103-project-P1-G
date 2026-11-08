@@ -1,3 +1,5 @@
+CONFIDENCE_THRESHOLD = 0.6
+
 def validate_amount(amount):
     if amount.lower() == "quit":
         return "quit"
@@ -51,3 +53,17 @@ def analyse_spending(records, time_target_list=None):
         "Spending by category": byCategory,
         "Time-Limited Targets": target_summary
     }
+
+def needs_manual_category(result):
+    """True if the AI failed (None) or isn't confident enough."""
+    return result is None or result.confidence < CONFIDENCE_THRESHOLD
+
+def validate_category_choice(choice, categories):
+    """Return the chosen category name, or "Invalid"."""
+    try:
+        index = int(choice.strip()) - 1
+    except ValueError:
+        return "Invalid"
+    if 0 <= index < len(categories):
+        return categories[index]
+    return "Invalid"
