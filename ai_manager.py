@@ -28,7 +28,8 @@ class AIResult:
 class AIProvider(ABC):
     @property
     @abstractmethod
-    def name(self) -> str: ...
+    def name(self) -> str:
+        """Return the provider's name, e.g. the model name."""
 
     @abstractmethod
     def generate(self, prompt: str) -> str:
