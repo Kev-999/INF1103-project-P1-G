@@ -1,8 +1,6 @@
-from logic_manager import validate_amount
-from logic_manager import validate_description
+from logic_manager import validate_amount, validate_description, validate_category_choice
 from datetime import date, timedelta
 import data_manager
-from logic_manager import validate_category_choice
 
 def _ask_date(prompt):
     """Ask for a YYYY-MM-DD date. Blank returns None (skip)."""

@@ -3,7 +3,6 @@ import data_manager
 import io_manager
 from logic_manager import analyse_spending, needs_manual_category
 from ai_manager import build_default_manager, CATEGORIES
-from types import SimpleNamespace
 
 SORT_DESCENDING = {"date": False, "amount": True, "description": False}
 
