@@ -1,12 +1,11 @@
 from datetime import date
-import data_manager
+from data_manager import ExpenseTracker
 import io_manager
 from logic_manager import analyse_spending, needs_manual_category
 from ai_manager import build_default_manager, CATEGORIES
 
 SORT_DESCENDING = {"date": False, "amount": True, "description": False}
 
-ai_manager = build_default_manager()
 
 def show_menu():
     print("\n--- Student Expense Tracker ---")
@@ -16,7 +15,8 @@ def show_menu():
     print("4. Create time-limited spending target")
     print("5. Exit")
 
-def add_expense(history):
+
+def add_expense(tracker, ai_manager):
     entry = io_manager.get_expense_entry()
     if entry is None:
         io_manager.display_info("Cancelled.")
@@ -33,66 +33,69 @@ def add_expense(history):
     else:
         entry["ai_response"] = result.category
 
-    record = data_manager.add_record(history, entry)
+    record = tracker.add_expense(entry)
     if record is None:
-        io_manager.display_error("Expense could not be added (invalid data).")
+        io_manager.display_error("Expense could not be added (invalid data or database error).")
         return
-    
-    error = data_manager.save_history(history)
-    if error:
-        io_manager.display_error(error)
-        return
-    
-    io_manager.display_success(f"Added expense #{record['id']} ({record['ai_response']}).")
-    
-    # check this new record falls within which time target ranges, and determine if it exceeds the limit
-    for t in data_manager.get_all_time_targets():
-        if t["start_date"] <= record["date"] <= t["end_date"]:
-            spent_in_range = data_manager.calc_target_spending(history, t["start_date"], t["end_date"])
-            if spent_in_range > t["target_amount"]:
+
+    io_manager.display_success(f"Added expense #{record.id} ({record.ai_response}).")
+
+    # check which time targets this new record falls into, and whether any is over its limit
+    for t in tracker.time_targets:
+        if t.contains(record.date):
+            spent = t.spent(tracker.expenses)
+            if spent > t.target_amount:
                 io_manager.display_error(
-                    f" ALERT! Target [{t['name']}] ({t['start_date']}~{t['end_date']}) OVER LIMIT! "
-                    f"target:{t['target_amount']:.2f}, spent:{spent_in_range:.2f}"
+                    f" ALERT! Target [{t.name}] ({t.start_date}~{t.end_date}) OVER LIMIT! "
+                    f"target:{t.target_amount:.2f}, spent:{spent:.2f}"
                 )
 
-def view_summary(history):
-    options = io_manager.get_summary_options(CATEGORIES)
-    filtered = data_manager.query(history, **options)   # oldest first by default
-    if not filtered:
-        io_manager.display_info("No expenses match those filters.")
-        return
 
-    time_target_list = data_manager.get_all_time_targets()
-    sort_by = "date"
+def view_summary(tracker):
+    options = io_manager.get_summary_options(CATEGORIES)
+    sort_by = "date"   # oldest first by default
+
     while True:
-        ordered = data_manager.sort_records(filtered, sort_by, SORT_DESCENDING[sort_by])
+        ordered = tracker.query(**options, sort_by=sort_by, descending=SORT_DESCENDING[sort_by])
+        if not ordered:
+            io_manager.display_info("No expenses match those filters.")
+            return
+
         io_manager.display_expenses(ordered)
-        io_manager.display_analysis(analyse_spending(ordered, time_target_list))
+        io_manager.display_analysis(analyse_spending(ordered, tracker.time_targets))
 
         sort_by = io_manager.get_sort_choice()
         if sort_by is None:   # user chose Quit
             return
 
-def create_time_target():
+
+def create_time_target(tracker):
     print("\n--- New Time-Limited Target ---")
     target_input = io_manager.get_time_target_input()
     if target_input is None:
         io_manager.display_info("Target creation cancelled.")
         return
-    new_t = data_manager.add_time_target(
+
+    new_t = tracker.add_time_target(
         name=target_input["name"],
         target_amount=target_input["amount"],
         start_date=target_input["start"],
-        end_date=target_input["end"]
+        end_date=target_input["end"],
     )
     if new_t is None:
         io_manager.display_error("Failed to create target, invalid input.")
     else:
-        io_manager.display_success(f"Created target #{new_t['target_id']} [{new_t['name']}] {new_t['start_date']} ~ {new_t['end_date']}, limit {new_t['target_amount']:.2f}")
-        
+        io_manager.display_success(
+            f"Created target #{new_t.target_id} [{new_t.name}] "
+            f"{new_t.start_date} ~ {new_t.end_date}, limit {new_t.target_amount:.2f}"
+        )
+
+
 def main():
-    history, warnings = data_manager.load_history()
-    for warning in warnings:
+    tracker = ExpenseTracker()
+    ai_manager = build_default_manager()
+
+    for warning in tracker.load():
         io_manager.display_error(warning)
 
     while True:
@@ -100,21 +103,19 @@ def main():
         choice = input("Choose an option: ").strip()
 
         if choice == "1":
-            add_expense(history)
+            add_expense(tracker, ai_manager)
         elif choice == "2":
-            io_manager.display_expenses(history)
+            io_manager.display_expenses(tracker.expenses)
         elif choice == "3":
-            view_summary(history)
-            targets = data_manager.get_all_time_targets()
-            analysis_result = analyse_spending(history, time_target_list=targets)
-            io_manager.display_analysis(analysis_result)
+            view_summary(tracker)
         elif choice == "4":
-            create_time_target()
+            create_time_target(tracker)
         elif choice == "5":
             print("Goodbye!")
             break
         else:
             io_manager.display_error("Invalid option, try again")
+
 
 if __name__ == "__main__":
     main()

@@ -1,26 +1,41 @@
 """
-Entries look like:
-    {"id": 1, "date": "2026-10-02", "description": "Lunch",
-     "amount": 12.5, "budget": 20.0, "ai_response": "Nice, under budget."}
+Spending tracker, SQLite version.
 
-File new structure:
-{
-  "records": [ {...expense entries...} ],
-  "time_targets": [
-      {"target_id":1,"name":"xxx","target_amount":500.0,"start_date":"2026-10-01","end_date":"2026-10-07"}
-  ]
-}
+Tables:
+  expenses     (id, date, description, amount, budget, ai_response)
+  time_targets (target_id, name, target_amount, start_date, end_date)
 """
 
 import json
 import os
+import sqlite3
+from dataclasses import dataclass, asdict
+from typing import Optional
 
-DATA_FILE = os.path.join("data","spending.json")
-FIELDS = ["id", "date", "description", "amount", "budget", "ai_response"]
-REQUIRED_FIELDS = ["id", "date", "description", "amount", "budget"]  
+DB_FILE = os.path.join("data", "spending.db")
+JSON_FILE = os.path.join("data", "spending.json")   # old file, only used for import
 SORT_OPTIONS = ("date", "amount", "description", "id")
-full_history = []
-time_targets = []   # store multiple time-based targets
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS expenses (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    date        TEXT NOT NULL,
+    description TEXT NOT NULL,
+    amount      REAL NOT NULL,
+    budget      REAL NOT NULL,
+    ai_response TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS time_targets (
+    target_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL,
+    target_amount REAL NOT NULL,
+    start_date    TEXT NOT NULL,
+    end_date      TEXT NOT NULL
+);
+"""
+
+
+# ---------- small helpers ----------
 
 def to_money(value):
     """Convert to a non-negative amount rounded to 2 decimals, or raise ValueError."""
@@ -47,221 +62,302 @@ def is_valid_date(text):
     return 1 <= day <= days_in_month[month - 1]
 
 
-def clean_record(raw):
-    """Return a valid record dict, or None if raw is unusable."""
-    try:
-        record = {
-            "id": int(raw["id"]),
-            "date": str(raw["date"]).strip(),
-            "description": str(raw["description"]).strip(),
-            "amount": to_money(raw["amount"]),
-            "budget": to_money(raw["budget"]),
-            "ai_response": str(raw.get("ai_response") or "").strip(),
-        }
-    except (KeyError, TypeError, ValueError, AttributeError):
-        return None
-    if not record["description"] or record["amount"] <= 0:
-        return None
-    if not is_valid_date(record["date"]):
-        return None
-    return record
+# ---------- data classes (unchanged) ----------
 
-def backup_corrupted_file(filename):
-    try:
-        with open(filename, "rb") as source, open(filename + ".corrupted", "wb") as target:
-            target.write(source.read())
-        return True
-    except OSError:
-        return False
+@dataclass
+class Expense:
+    id: int
+    date: str
+    description: str
+    amount: float
+    budget: float
+    ai_response: str = ""
 
-def _read_json(filename):
-    with open(filename, "r", encoding="utf-8") as file:
-        data = json.load(file)
-    if not isinstance(data, (list, dict)):
-        raise ValueError("JSON root must be a list or dict")
-    return data
+    @classmethod
+    def from_raw(cls, raw) -> Optional["Expense"]:
+        """Build a valid Expense from a dict, or return None if it's unusable."""
+        try:
+            expense = cls(
+                id=int(raw["id"]),
+                date=str(raw["date"]).strip(),
+                description=str(raw["description"]).strip(),
+                amount=to_money(raw["amount"]),
+                budget=to_money(raw["budget"]),
+                ai_response=str(raw.get("ai_response") or "").strip(),
+            )
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return None
+        if not expense.description or expense.amount <= 0:
+            return None
+        if not is_valid_date(expense.date):
+            return None
+        return expense
 
-def _load_records(filename):
-    global time_targets
-    try:
-        raw_data = _read_json(filename)
-    except FileNotFoundError:
-        return [], [], []
-    except ValueError:
-        if backup_corrupted_file(filename):
-            return [], [f"{filename} was corrupted. A copy was kept as {filename}.corrupted."], []
-        return [], [f"{filename} was corrupted and could not be backed up."], []
-    except OSError as error:
-        return [], [f"Could not read {filename}: {error}"], []
+    @property
+    def over_budget(self) -> bool:
+        return self.amount > self.budget
 
-    # compat old version files: root node is a list
-    if isinstance(raw_data, list):
-        raw_rows = raw_data
-        loaded_targets = []
-    elif isinstance(raw_data, dict):
-        raw_rows = raw_data.get("records", [])
-        loaded_targets = raw_data.get("time_targets", [])
-    else:
-        raise ValueError("invalid json root")
+    def to_dict(self) -> dict:
+        return asdict(self)
 
-    records = []
-    skipped = 0
-    for raw in raw_rows:
-        record = clean_record(raw)
-        if record is None:
-            skipped +=1
+
+@dataclass
+class TimeTarget:
+    target_id: int
+    name: str
+    target_amount: float
+    start_date: str
+    end_date: str
+
+    @classmethod
+    def from_raw(cls, raw) -> Optional["TimeTarget"]:
+        try:
+            target = cls(
+                target_id=int(raw["target_id"]),
+                name=str(raw["name"]).strip(),
+                target_amount=to_money(raw["target_amount"]),
+                start_date=str(raw["start_date"]).strip(),
+                end_date=str(raw["end_date"]).strip(),
+            )
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return None
+        if not (is_valid_date(target.start_date) and is_valid_date(target.end_date)):
+            return None
+        if target.start_date > target.end_date:
+            return None
+        return target
+
+    def contains(self, date: str) -> bool:
+        return self.start_date <= date <= self.end_date
+
+    def spent(self, expenses) -> float:
+        """Total spending from `expenses` that falls inside this target's range."""
+        return round(sum(e.amount for e in expenses if self.contains(e.date)), 2)
+
+    def remaining(self, expenses) -> float:
+        return round(self.target_amount - self.spent(expenses), 2)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+# ---------- the tracker: owns the data and the database connection ----------
+
+class ExpenseTracker:
+    def __init__(self, filename=DB_FILE):
+        self.filename = filename
+        self.expenses: list[Expense] = []
+        self.time_targets: list[TimeTarget] = []
+        self._conn: Optional[sqlite3.Connection] = None
+
+    # ----- connection / loading -----
+
+    def _connect(self):
+        if self._conn is None:
+            os.makedirs(os.path.dirname(self.filename) or ".", exist_ok=True)
+            conn = sqlite3.connect(self.filename)
+            conn.row_factory = sqlite3.Row
+            conn.executescript(SCHEMA)     # creates the tables on first run
+            self._conn = conn
+
+    def close(self):
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
+
+    def load(self):
+        """Read everything from the database. Returns a list of warning strings."""
+        self.expenses.clear()
+        self.time_targets.clear()
+        try:
+            self._connect()
+            expense_rows = self._conn.execute("SELECT * FROM expenses ORDER BY id").fetchall()
+            target_rows = self._conn.execute("SELECT * FROM time_targets ORDER BY target_id").fetchall()
+        except sqlite3.Error as error:
+            return [f"Could not open database {self.filename}: {error}"]
+
+        skipped = 0
+        for row in expense_rows:
+            expense = Expense.from_raw(dict(row))
+            if expense is None:
+                skipped += 1
+            else:
+                self.expenses.append(expense)
+
+        skipped_targets = 0
+        for row in target_rows:
+            target = TimeTarget.from_raw(dict(row))
+            if target is None:
+                skipped_targets += 1
+            else:
+                self.time_targets.append(target)
+
+        warnings = []
+        if skipped:
+            warnings.append(f"Skipped {skipped} bad record(s) in {self.filename}.")
+        if skipped_targets:
+            warnings.append(f"Skipped {skipped_targets} bad target(s) in {self.filename}.")
+        return warnings
+
+    # ----- one-time import from the old JSON file -----
+
+    def import_from_json(self, json_path=JSON_FILE):
+        """Copy records and targets from the old JSON file into the database.
+        Keeps the original ids. Safe to run twice: rows that already exist are skipped.
+        Returns a list of warning strings."""
+        try:
+            self._connect()
+            with open(json_path, "r", encoding="utf-8") as file:
+                data = json.load(file)
+        except FileNotFoundError:
+            return [f"{json_path} not found, nothing to import."]
+        except (OSError, ValueError, sqlite3.Error) as error:
+            return [f"Could not import {json_path}: {error}"]
+
+        if isinstance(data, list):                       # very old format
+            raw_rows, raw_targets = data, []
+        elif isinstance(data, dict):
+            raw_rows = data.get("records", [])
+            raw_targets = data.get("time_targets", [])
         else:
-            records.append(record)
-    warnings = [f"Skipped {skipped} bad record(s) in {filename}."] if skipped else []
-    time_targets = loaded_targets
-    return records, warnings, loaded_targets
+            return [f"{json_path} has an unexpected format."]
 
-def load_history(filename=DATA_FILE):
-    global full_history, time_targets
-    records, warnings, targets = _load_records(filename)
-    full_history.clear()
-    full_history.extend(records)
-    time_targets = targets
-    return full_history, warnings
+        skipped = 0
+        with self._conn:                                 # one transaction
+            for raw in raw_rows:
+                e = Expense.from_raw(raw)
+                if e is None:
+                    skipped += 1
+                    continue
+                self._conn.execute(
+                    "INSERT OR IGNORE INTO expenses "
+                    "(id, date, description, amount, budget, ai_response) VALUES (?,?,?,?,?,?)",
+                    (e.id, e.date, e.description, e.amount, e.budget, e.ai_response),
+                )
+            for raw in raw_targets:
+                t = TimeTarget.from_raw(raw)
+                if t is None:
+                    skipped += 1
+                    continue
+                self._conn.execute(
+                    "INSERT OR IGNORE INTO time_targets "
+                    "(target_id, name, target_amount, start_date, end_date) VALUES (?,?,?,?,?)",
+                    (t.target_id, t.name, t.target_amount, t.start_date, t.end_date),
+                )
 
-def save_history(new_history, filename=DATA_FILE):
-    global time_targets
-    try:
-        os.makedirs(os.path.dirname(filename) or ".", exist_ok=True)
-        out_data = {
-            "records": new_history,
-            "time_targets": time_targets
-        }
-        with open(filename,"w",encoding="utf-8") as file:
-            json.dump(out_data,file,indent=2)
-    except OSError as error:
-        return f"Could not save to {filename}: {error}"
-    return None
+        warnings = self.load()                           # refresh the in-memory lists
+        if skipped:
+            warnings.append(f"Skipped {skipped} bad row(s) while importing.")
+        return warnings
 
-def get_next_target_id():
-    if not time_targets:
-        return 1
-    return max(t["target_id"] for t in time_targets)+1
+    # ----- expenses -----
 
-def add_time_target(name:str, target_amount:float, start_date:str, end_date:str):
-    """add time target; return the new target dict; return None on failure"""
-    global time_targets
-    if not (is_valid_date(start_date) and is_valid_date(end_date)):
-        return None
-    if start_date > end_date:
-        return None
-    new_t = {
-        "target_id": get_next_target_id(),
-        "name": name.strip(),
-        "target_amount": to_money(target_amount),
-        "start_date": start_date,
-        "end_date": end_date
-    }
-    time_targets.append(new_t)
-    save_history(full_history)
-    return new_t
+    def add_expense(self, entry) -> Optional[Expense]:
+        """Validate `entry` (a dict), save it to the database, and return the Expense.
+        Returns None if the data is invalid or the database write fails."""
+        if not isinstance(entry, dict):
+            return None
+        expense = Expense.from_raw({
+            "id": 0,                                     # placeholder; the database assigns the real id
+            "date": entry.get("date"),
+            "description": entry.get("description"),
+            "amount": entry.get("amount"),
+            "budget": entry.get("budget"),
+            "ai_response": entry.get("ai_response"),
+        })
+        if expense is None:
+            return None
+        try:
+            with self._conn:                             # commits on success, rolls back on error
+                cursor = self._conn.execute(
+                    "INSERT INTO expenses (date, description, amount, budget, ai_response) "
+                    "VALUES (?,?,?,?,?)",
+                    (expense.date, expense.description, expense.amount,
+                     expense.budget, expense.ai_response),
+                )
+        except sqlite3.Error:
+            return None
+        expense.id = cursor.lastrowid
+        self.expenses.append(expense)
+        return expense
 
-def get_all_time_targets():
-    return time_targets.copy()
+    def add_expenses(self, entries):
+        """Returns (list_of_added_expenses, number_rejected)."""
+        added, rejected = [], 0
+        for entry in entries:
+            expense = self.add_expense(entry)
+            if expense:
+                added.append(expense)
+            else:
+                rejected += 1
+        return added, rejected
 
-def calc_target_spending(records, start_date, end_date):
-    """calculate the total spending in records that fall within [start_date, end_date]"""
-    filtered = [r for r in records if start_date <= r["date"] <= end_date]
-    total = sum(r["amount"] for r in filtered)
-    return round(total,2)
+    def find_by_id(self, expense_id) -> Optional[Expense]:
+        return next((e for e in self.expenses if e.id == expense_id), None)
 
-def get_next_id(new_history):
-    if not new_history:
-        return 1
-    return max(record["id"] for record in new_history) + 1
+    def query(self, description=None, category=None, date_from=None, date_to=None,
+              min_amount=None, max_amount=None, over_budget=None, record_id=None,
+              sort_by="date", descending=False):
+        """Combine any filters; None means 'skip this filter'."""
+        result = self.expenses
+        if record_id is not None:
+            match = self.find_by_id(record_id)
+            result = [match] if match else []
+        if description:
+            text = description.lower()
+            result = [e for e in result if text in e.description.lower()]
+        if category:
+            category = category.lower()
+            result = [e for e in result if e.ai_response.lower() == category]
+        if date_from is not None:
+            result = [e for e in result if e.date >= date_from]
+        if date_to is not None:
+            result = [e for e in result if e.date <= date_to]
+        if min_amount is not None:
+            result = [e for e in result if e.amount >= min_amount]
+        if max_amount is not None:
+            result = [e for e in result if e.amount <= max_amount]
+        if over_budget is not None:
+            result = [e for e in result if e.over_budget == over_budget]
+        return self._sort(result, sort_by, descending)
 
-def add_record(history, entry):
-    if not isinstance(entry, dict):
-        return None
-    record = clean_record({
-        "id": get_next_id(history),
-        "date": entry.get("date"),
-        "description": entry.get("description"),
-        "amount": entry.get("amount"),
-        "budget": entry.get("budget"),
-        "ai_response": entry.get("ai_response"),
-    })
-    if record is not None:
-        history.append(record)
-    return record
-
-def add_records(history, entries):
-    added = []
-    rejected = 0
-    for entry in entries:
-        record = add_record(history, entry)
-        if record:
-            added.append(record)
+    @staticmethod
+    def _sort(expenses, sort_by="date", descending=False):
+        """Ties are broken by id so the order is stable."""
+        if sort_by not in SORT_OPTIONS:
+            sort_by = "date"
+        if sort_by == "description":
+            key = lambda e: (e.description.lower(), e.id)
         else:
-            rejected +=1
-    return added, rejected
+            key = lambda e: (getattr(e, sort_by), e.id)
+        return sorted(expenses, key=key, reverse=descending)
 
-def find_by_id(records, record_id):
-    for record in records:
-        if record["id"] == record_id:
-            return record
-    return None
+    # ----- time targets -----
 
-def filter_by_description(records, text):
-    text = text.lower()
-    return [r for r in records if text in r["description"].lower()]
+    def add_time_target(self, name, target_amount, start_date, end_date) -> Optional[TimeTarget]:
+        """Validate, save to the database, and return the TimeTarget (or None on failure)."""
+        target = TimeTarget.from_raw({
+            "target_id": 0,                              # placeholder; the database assigns the real id
+            "name": name,
+            "target_amount": target_amount,
+            "start_date": start_date,
+            "end_date": end_date,
+        })
+        if target is None:
+            return None
+        try:
+            with self._conn:
+                cursor = self._conn.execute(
+                    "INSERT INTO time_targets (name, target_amount, start_date, end_date) "
+                    "VALUES (?,?,?,?)",
+                    (target.name, target.target_amount, target.start_date, target.end_date),
+                )
+        except sqlite3.Error:
+            return None
+        target.target_id = cursor.lastrowid
+        self.time_targets.append(target)
+        return target
 
-
-def filter_by_date(records, start=None, end=None):
-    """Dates are YYYY-MM-DD, so plain string comparison orders them correctly."""
-    result = records
-    if start is not None:
-        result = [r for r in result if r["date"] >= start]
-    if end is not None:
-        result = [r for r in result if r["date"] <= end]
-    return result
-
-def filter_by_amount(records, min_amount=None, max_amount=None):
-    result = records
-    if min_amount is not None:
-        result = [r for r in result if r["amount"] >= min_amount]
-    if max_amount is not None:
-        result = [r for r in result if r["amount"] <= max_amount]
-    return result
-
-
-def filter_by_budget_status(records, over_budget):
-    """over_budget=True -> only entries where amount > budget; False -> the rest."""
-    return [r for r in records if (r["amount"] > r["budget"]) == over_budget]
-
-def sort_records(records, sort_by="date", descending=False):
-    """Sort records; ties are broken by id so the order is stable."""
-    if sort_by not in SORT_OPTIONS:
-        sort_by = "date"
-    if sort_by == "description":
-        key = lambda r: (r["description"].lower(), r["id"])
-    else:
-        key = lambda r: (r[sort_by], r["id"])
-    return sorted(records, key=key, reverse=descending)
-
-def filter_by_category(records, category):
-    category = category.lower()
-    return [r for r in records if r["ai_response"].lower() == category]
-
-def query(records, description=None, category=None, date_from=None, date_to=None,
-          min_amount=None, max_amount=None, over_budget=None, record_id=None,
-          sort_by="date", descending=False):
-    """Combine any filters; None means 'skip this filter'. Sorted by date by default."""
-    result = records
-    if record_id is not None:
-        match = find_by_id(result, record_id)
-        result = [match] if match else []
-    if description:
-        result = filter_by_description(result, description)
-    if category:
-        result = filter_by_category(result, category)
-    result = filter_by_date(result, date_from, date_to)
-    result = filter_by_amount(result, min_amount, max_amount)
-    if over_budget is not None:
-        result = filter_by_budget_status(result, over_budget)
-    return sort_records(result, sort_by, descending)
+    def target_progress(self, target: TimeTarget):
+        """Returns (spent, remaining) for a target using this tracker's expenses."""
+        return target.spent(self.expenses), target.remaining(self.expenses)

@@ -23,27 +23,33 @@ def validate_description(description):
 
 
 def analyse_spending(records, time_target_list=None):
-    total = sum(r["amount"] for r in records)
+    total = sum(r.amount for r in records)
     byCategory = {}
     for r in records:
-        category = r.get("ai_response") or "Uncategorised"
-        byCategory[category] = round(byCategory.get(category, 0) + r["amount"], 2)
+        category = r.ai_response or "Uncategorised"
+        byCategory[category] = round(byCategory.get(category, 0) + r.amount, 2)
 
     target_summary = []
     if time_target_list:
         for t in time_target_list:
-            spent = sum(r["amount"] for r in records if t["start_date"] <= r["date"] <= t["end_date"])
-            spent = round(spent,2)
-            remain = round(t["target_amount"] - spent, 2)
-            over = spent > t["target_amount"]
+            spent = t.spent(records)
             target_summary.append({
-                "target_name": t["name"],
-                "period": f"{t['start_date']} ~ {t['end_date']}",
-                "target_amount": t["target_amount"],
+                "target_name": t.name,
+                "period": f"{t.start_date} ~ {t.end_date}",
+                "target_amount": t.target_amount,
                 "spent": spent,
-                "remaining": remain,
-                "is_over": over
+                "remaining": t.remaining(records),
+                "is_over": spent > t.target_amount
             })
+
+    return {
+        "Number of expenses": len(records),
+        "Total spent(all time)": round(total, 2),
+        "Average per expense": round(total / len(records), 2) if records else 0,
+        "Over budget count": sum(1 for r in records if r.over_budget),
+        "Spending by category": byCategory,
+        "Time-Limited Targets": target_summary
+    }
 
     return {
         "Number of expenses": len(records),

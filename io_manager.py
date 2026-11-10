@@ -12,12 +12,11 @@ def _ask_date(prompt):
             return text
         display_error("Use YYYY-MM-DD, or leave blank to skip.")
 
-
+   
 def _ask_amount(prompt) -> float | None:
-    """Ask for an optional non-negative amount. Blank returns None (skip)."""
     while True:
         text = input(prompt).strip()
-        if not text:
+        if not text or text.lower() == "quit":
             return None
         try:
             return data_manager.to_money(text)
@@ -165,8 +164,8 @@ def confirm(prompt: str) -> bool:
         display_error("Please enter y or n.")
 
 
-def display_expenses(entries: list[dict]) -> None:
-    """Display a list of expense entries in a table."""
+def display_expenses(entries: list) -> None:
+    """Display a list of Expense objects in a table."""
     print("\n--- Expense History ---")
     if not entries:
         print("No expenses found.")
@@ -175,14 +174,14 @@ def display_expenses(entries: list[dict]) -> None:
     print(f"{'ID':<5} {'Date':<12} {'Amount':>10} {'Budget':>10} {'Category':<20} Description")
     print("-" * 85)
 
-    for entry in entries:
+    for e in entries:
         print(
-            f"{str(entry.get('id', '')):<5} "
-            f"{str(entry.get('date', '')):<12} "
-            f"{float(entry.get('amount', 0)):>10.2f} "
-            f"{float(entry.get('budget', 0)):>10.2f} "
-            f"{str(entry.get('ai_response') or 'Uncategorised'):<20} "
-            f"{entry.get('description', '')}"
+            f"{e.id:<5} "
+            f"{e.date:<12} "
+            f"{e.amount:>10.2f} "
+            f"{e.budget:>10.2f} "
+            f"{(e.ai_response or 'Uncategorised'):<20} "
+            f"{e.description}"
         )
 
 
