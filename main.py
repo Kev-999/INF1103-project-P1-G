@@ -1,10 +1,12 @@
 from datetime import date
 from data_manager import ExpenseTracker
-import io_manager
+from io_manager import InputOutputManager
 from logic_manager import analyse_spending, needs_manual_category
 from ai_manager import build_default_manager, CATEGORIES
 
 SORT_DESCENDING = {"date": False, "amount": True, "description": False}
+MENU = ["Add expense", "View expenses", "View spending analysis",
+        "Create time-limited spending target", "Exit"]
 
 
 def show_menu():
@@ -16,7 +18,7 @@ def show_menu():
     print("5. Exit")
 
 
-def add_expense(tracker, ai_manager):
+def add_expense(tracker, ai_manager, io_manager):
     entry = io_manager.get_expense_entry()
     if entry is None:
         io_manager.display_info("Cancelled.")
@@ -29,13 +31,17 @@ def add_expense(tracker, ai_manager):
 
     # Business rule (in logic_manager): AI failed or low confidence -> user picks
     if needs_manual_category(result):
-        entry["ai_response"] = io_manager.get_category_selection(entry["description"], CATEGORIES)
+        entry["ai_response"] = io_manager.get_category_selection(
+            entry["description"], CATEGORIES
+        )
     else:
         entry["ai_response"] = result.category
 
     record = tracker.add_expense(entry)
     if record is None:
-        io_manager.display_error("Expense could not be added (invalid data or database error).")
+        io_manager.display_error(
+            "Expense could not be added (invalid data or database error)."
+        )
         return
 
     io_manager.display_success(f"Added expense #{record.id} ({record.ai_response}).")
@@ -51,12 +57,14 @@ def add_expense(tracker, ai_manager):
                 )
 
 
-def view_summary(tracker):
+def view_summary(tracker, io_manager):
     options = io_manager.get_summary_options(CATEGORIES)
-    sort_by = "date"   # oldest first by default
+    sort_by = "date"  # oldest first by default
 
     while True:
-        ordered = tracker.query(**options, sort_by=sort_by, descending=SORT_DESCENDING[sort_by])
+        ordered = tracker.query(
+            **options, sort_by=sort_by, descending=SORT_DESCENDING[sort_by]
+        )
         if not ordered:
             io_manager.display_info("No expenses match those filters.")
             return
@@ -65,11 +73,11 @@ def view_summary(tracker):
         io_manager.display_analysis(analyse_spending(ordered, tracker.time_targets))
 
         sort_by = io_manager.get_sort_choice()
-        if sort_by is None:   # user chose Quit
+        if sort_by is None:  # user chose Quit
             return
 
 
-def create_time_target(tracker):
+def create_time_target(tracker, io_manager):
     print("\n--- New Time-Limited Target ---")
     target_input = io_manager.get_time_target_input()
     if target_input is None:
@@ -92,29 +100,28 @@ def create_time_target(tracker):
 
 
 def main():
+    io = InputOutputManager()
     tracker = ExpenseTracker()
     ai_manager = build_default_manager()
 
     for warning in tracker.load():
-        io_manager.display_error(warning)
+        io.display_error(warning)
 
     while True:
-        show_menu()
-        choice = input("Choose an option: ").strip()
+        io.show_menu("Student Expense Tracker", MENU)
+        choice = io.ask_choice("Choose an option: ", {"1", "2", "3", "4", "5"})
 
         if choice == "1":
-            add_expense(tracker, ai_manager)
+            add_expense(tracker, ai_manager, io)
         elif choice == "2":
-            io_manager.display_expenses(tracker.expenses)
+            io.display_expenses(tracker.expenses)
         elif choice == "3":
-            view_summary(tracker)
+            view_summary(tracker, io)
         elif choice == "4":
-            create_time_target(tracker)
+            create_time_target(tracker, io)
         elif choice == "5":
-            print("Goodbye!")
+            io.display_info("Goodbye!")
             break
-        else:
-            io_manager.display_error("Invalid option, try again")
 
 
 if __name__ == "__main__":
