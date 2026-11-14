@@ -2,12 +2,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Callable, Iterable, Sequence
 import data_manager
-import logic_manager
-from logic_manager import (
-    validate_amount,
-    validate_category_choice,
-    validate_description,
-)
+from logic_manager import InputValidator
 
 def _console_read(prompt: str = "") -> str:
     """Default input source. Looks `input` up at call time so tests can patch it."""
@@ -36,18 +31,12 @@ class InputOutputManager:
     def __init__(
         self,
         data=data_manager,
-        validators=logic_manager,
+        validators: InputValidator | None = None,
         today: Callable[[], date] | None = None,
         read: Callable[[str], str] | None = None,
     ) -> None:
         self._data = data
-        self._validate_amount = getattr(validators, "validate_amount", validate_amount)
-        self._validate_description = getattr(
-            validators, "validate_description", validate_description
-        )
-        self._validate_category_choice = getattr(
-            validators, "validate_category_choice", validate_category_choice
-        )
+        self._validators = validators or InputValidator()
         self._today = today or date.today
         self._read = read or _console_read
 
@@ -179,15 +168,19 @@ class InputOutputManager:
             self.display_error(self.DATE_HINT)
 
     def ask_amount(self, prompt: str) -> float | None:
-        """Ask for an optional non-negative amount. Blank or 'quit' skips."""
+        """Ask for an optional non-negative amount. Blank or 'quit' returns None."""
         while True:
             text = self.ask_text(prompt)
             if not text or text.lower() == "quit":
                 return None
-            try:
-                return self._data.to_money(text)
-            except ValueError:
-                self.display_error(self.AMOUNT_HINT)
+            verdict = self._validators.validate_amount(text)
+            if verdict == "Negative":
+                self.display_error("Number cannot be negative.")
+                continue
+            if verdict == "Invalid":
+                self.display_error("Enter a valid number, or leave blank to cancel.")
+                continue
+            return round(verdict, 2)
 
     def ask_yes_no(self, prompt: str) -> bool:
         """Ask a yes/no question. True for yes, False for no."""
@@ -288,7 +281,7 @@ class InputOutputManager:
         """Ask for a description. Returns a non-blank string, or None on quit."""
         while True:
             text = self.ask_text("Description: ")
-            verdict = self._validate_description(text)
+            verdict = self._validators.validate_description(text)
 
             if verdict == "quit":
                 return None
@@ -330,7 +323,7 @@ class InputOutputManager:
             raw = self.ask_text(
                 "Please enter your overall spending target amount (type quit to cancel): "
             )
-            verdict = self._validate_amount(raw)
+            verdict = self._validators.validate_amount(raw)
 
             if verdict == "quit":
                 return None
@@ -403,89 +396,7 @@ class InputOutputManager:
         while True:
             # Verbatim: the validator decides what counts as a usable answer.
             choice = self.ask_raw(f"Enter number (1-{len(categories)}): ")
-            result = self._validate_category_choice(choice, categories)
+            result = self._validators.validate_category_choice(choice, categories)
             if result != "Invalid":
                 return result
             self.display_info(f"Invalid choice. Please enter 1-{len(categories)}.")
-
-
-# --------------------------------------------------------------------------- #
-# Module-level functions, so main.py can keep calling io_manager.get_...()
-# --------------------------------------------------------------------------- #
-default_io = InputOutputManager()
-
-
-def get_summary_options(categories):
-    return default_io.get_summary_options(categories)
-
-
-def get_sort_choice():
-    return default_io.get_sort_choice()
-
-
-def get_report_period():
-    return default_io.get_report_period()
-
-
-def get_description():
-    return default_io.get_description()
-
-
-def get_expense_entry():
-    return default_io.get_expense_entry()
-
-
-def confirm(prompt):
-    return default_io.confirm(prompt)
-
-
-def display_expenses(entries):
-    return default_io.display_expenses(entries)
-
-
-def display_analysis(analysis):
-    return default_io.display_analysis(analysis)
-
-
-def display_error(message):
-    return default_io.display_error(message)
-
-
-def display_success(message):
-    return default_io.display_success(message)
-
-
-def display_info(message):
-    return default_io.display_info(message)
-
-
-def get_target_input():
-    return default_io.get_target_input()
-
-
-def get_target_name():
-    return default_io.get_target_name()
-
-
-def get_target_date(prompt_text):
-    return default_io.get_target_date(prompt_text)
-
-
-def get_time_target_input():
-    return default_io.get_time_target_input()
-
-
-def get_category_selection(expense_description, categories):
-    return default_io.get_category_selection(expense_description, categories)
-
-
-def show_menu(title, options):
-    return default_io.show_menu(title, options)
-
-
-def show_heading(title):
-    return default_io.show_heading(title)
-
-
-def ask_choice(prompt, valid):
-    return default_io.ask_choice(prompt, valid)

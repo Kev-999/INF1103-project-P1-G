@@ -1,7 +1,7 @@
 from datetime import date
 from data_manager import ExpenseTracker
 from io_manager import InputOutputManager
-from logic_manager import analyse_spending, needs_manual_category
+from logic_manager import InputValidator, LogicManager
 from ai_manager import build_default_manager, CATEGORIES
 
 SORT_DESCENDING = {"date": False, "amount": True, "description": False}
@@ -18,7 +18,7 @@ def show_menu():
     print("5. Exit")
 
 
-def add_expense(tracker, ai_manager, io_manager):
+def add_expense(tracker, ai_manager, io_manager, logic_manager):
     entry = io_manager.get_expense_entry()
     if entry is None:
         io_manager.display_info("Cancelled.")
@@ -30,7 +30,7 @@ def add_expense(tracker, ai_manager, io_manager):
     result = ai_manager.categorize(entry["description"], entry["amount"])
 
     # Business rule (in logic_manager): AI failed or low confidence -> user picks
-    if needs_manual_category(result):
+    if logic_manager.needs_manual_category(result):
         entry["ai_response"] = io_manager.get_category_selection(
             entry["description"], CATEGORIES
         )
@@ -57,7 +57,7 @@ def add_expense(tracker, ai_manager, io_manager):
                 )
 
 
-def view_summary(tracker, io_manager):
+def view_summary(tracker, io_manager, logic_manager):
     options = io_manager.get_summary_options(CATEGORIES)
     sort_by = "date"  # oldest first by default
 
@@ -70,7 +70,7 @@ def view_summary(tracker, io_manager):
             return
 
         io_manager.display_expenses(ordered)
-        io_manager.display_analysis(analyse_spending(ordered, tracker.time_targets))
+        io_manager.display_analysis(logic_manager.analyse_spending(ordered, tracker.time_targets))
 
         sort_by = io_manager.get_sort_choice()
         if sort_by is None:  # user chose Quit
@@ -100,7 +100,9 @@ def create_time_target(tracker, io_manager):
 
 
 def main():
-    io = InputOutputManager()
+    validator = InputValidator()
+    io = InputOutputManager(validators=validator)
+    logic = LogicManager()
     tracker = ExpenseTracker()
     ai_manager = build_default_manager()
 
@@ -112,11 +114,11 @@ def main():
         choice = io.ask_choice("Choose an option: ", {"1", "2", "3", "4", "5"})
 
         if choice == "1":
-            add_expense(tracker, ai_manager, io)
+            add_expense(tracker, ai_manager, io, logic)
         elif choice == "2":
             io.display_expenses(tracker.expenses)
         elif choice == "3":
-            view_summary(tracker, io)
+            view_summary(tracker, io, logic)
         elif choice == "4":
             create_time_target(tracker, io)
         elif choice == "5":
