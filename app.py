@@ -26,9 +26,14 @@ class App:
         return cls(io, LogicManager(), ExpenseTracker(), build_default_manager())
 
     def run(self):
-        for warning in self._tracker.load():
-            self._io.display_error(warning)
+        try:
+            for warning in self._tracker.load():
+                self._io.display_error(warning)
+            self._menu_loop()
+        except (KeyboardInterrupt, EOFError):
+            self._io.display_info("\nNo more input. Goodbye!")
 
+    def _menu_loop(self):
         handlers = {
             "1": self._add_expense,
             "2": self._view_expenses,
@@ -44,7 +49,7 @@ class App:
                 self._io.display_info("Goodbye!")
                 return
             handlers[choice]()
-
+            
     # ---- menu actions ----
     def _view_expenses(self):
         self._io.display_expenses(self._tracker.expenses)
